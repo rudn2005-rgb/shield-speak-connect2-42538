@@ -3,18 +3,22 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import ChatList from "@/components/ChatList";
 import ChatWindow from "@/components/ChatWindow";
 import ContactSearch from "@/components/ContactSearch";
-import { LogOut, Plus, Shield, MessageCircle } from "lucide-react";
+import ChatRequests from "@/components/ChatRequests";
+import { LogOut, Plus, Shield, MessageCircle, Bell } from "lucide-react";
 import { toast } from "sonner";
 
 const Messenger = () => {
   const navigate = useNavigate();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isRequestsOpen, setIsRequestsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -38,12 +42,48 @@ const Messenger = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const loadPendingRequests = async () => {
+      const { data, error } = await supabase
+        .from("chat_requests")
+        .select("id")
+        .eq("receiver_id", currentUserId)
+        .eq("status", "pending");
+
+      if (!error && data) {
+        setPendingRequestsCount(data.length);
+      }
+    };
+
+    loadPendingRequests();
+
+    const channel = supabase
+      .channel("requests_count")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "chat_requests",
+          filter: `receiver_id=eq.${currentUserId}`,
+        },
+        () => loadPendingRequests()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/auth");
   };
 
-  const createNewChat = async (targetProfileId: string) => {
+  const sendChatRequest = async (targetProfileId: string) => {
     setLoading(true);
 
     try {
@@ -51,10 +91,11 @@ const Messenger = () => {
       if (!user) throw new Error("Not authenticated");
 
       if (targetProfileId === user.id) {
-        toast.error("Нельзя создать чат с самим собой");
+        toast.error("Нельзя отправить запрос самому себе");
         return;
       }
 
+      // Проверяем, существует ли уже чат
       const { data: existingMembers } = await supabase
         .from("chat_members")
         .select("chat_id")
@@ -78,30 +119,37 @@ const Messenger = () => {
         }
       }
 
-      const { data: newChat, error: chatError } = await supabase
-        .from("chats")
+      // Проверяем существующий запрос
+      const { data: existingRequest } = await supabase
+        .from("chat_requests")
+        .select("id, status")
+        .eq("sender_id", user.id)
+        .eq("receiver_id", targetProfileId)
+        .maybeSingle();
+
+      if (existingRequest) {
+        if (existingRequest.status === "pending") {
+          toast.info("Запрос уже отправлен");
+        } else {
+          toast.info("Запрос был отклонен");
+        }
+        return;
+      }
+
+      // Отправляем запрос
+      const { error } = await supabase
+        .from("chat_requests")
         .insert({
-          is_group: false,
-        })
-        .select()
-        .single();
+          sender_id: user.id,
+          receiver_id: targetProfileId,
+        });
 
-      if (chatError) throw chatError;
+      if (error) throw error;
 
-      const { error: membersError } = await supabase
-        .from("chat_members")
-        .insert([
-          { chat_id: newChat!.id, user_id: user.id },
-          { chat_id: newChat!.id, user_id: targetProfileId },
-        ]);
-
-      if (membersError) throw membersError;
-
-      setSelectedChatId(newChat!.id);
       setIsDialogOpen(false);
-      toast.success("Чат создан!");
+      toast.success("Запрос отправлен! Ожидайте подтверждения.");
     } catch (error: any) {
-      toast.error(error.message || "Ошибка создания чата");
+      toast.error(error.message || "Ошибка отправки запроса");
       console.error(error);
     } finally {
       setLoading(false);
@@ -121,7 +169,7 @@ const Messenger = () => {
           </Button>
         </div>
 
-        <div className="p-4">
+        <div className="p-4 space-y-2">
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="w-full">
@@ -131,11 +179,39 @@ const Messenger = () => {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Создать новый чат</DialogTitle>
+                <DialogTitle>Отправить запрос на чат</DialogTitle>
               </DialogHeader>
               <ContactSearch
-                onSelectContact={(profile) => createNewChat(profile.id)}
+                onSelectContact={(profile) => sendChatRequest(profile.id)}
                 currentUserId={currentUserId}
+              />
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isRequestsOpen} onOpenChange={setIsRequestsOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="w-full relative">
+                <Bell className="w-4 h-4 mr-2" />
+                Запросы
+                {pendingRequestsCount > 0 && (
+                  <Badge 
+                    variant="destructive" 
+                    className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                  >
+                    {pendingRequestsCount}
+                  </Badge>
+                )}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Запросы на чат</DialogTitle>
+              </DialogHeader>
+              <ChatRequests
+                currentUserId={currentUserId}
+                onRequestAccepted={() => {
+                  setIsRequestsOpen(false);
+                }}
               />
             </DialogContent>
           </Dialog>

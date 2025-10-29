@@ -21,6 +21,27 @@ const ContactSearch = ({ onSelectContact, currentUserId }: ContactSearchProps) =
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const loadSentRequests = async () => {
+      try {
+        const { data } = await supabase
+          .from("chat_requests")
+          .select("receiver_id")
+          .eq("sender_id", currentUserId)
+          .eq("status", "pending");
+
+        if (data) {
+          setSentRequests(new Set(data.map((r) => r.receiver_id)));
+        }
+      } catch (error) {
+        console.error("Error loading sent requests:", error);
+      }
+    };
+
+    loadSentRequests();
+  }, [currentUserId]);
 
   useEffect(() => {
     const searchContacts = async () => {
@@ -72,30 +93,39 @@ const ContactSearch = ({ onSelectContact, currentUserId }: ContactSearchProps) =
             </div>
           ) : results.length > 0 ? (
             <div className="p-2">
-              {results.map((profile) => (
-                <button
-                  key={profile.id}
-                  onClick={() => onSelectContact(profile)}
-                  className="w-full flex items-center gap-3 p-3 hover:bg-accent rounded-lg transition-colors"
-                >
-                  <Avatar>
-                    <AvatarImage src={profile.avatar_url || undefined} />
-                    <AvatarFallback>
-                      <User className="w-4 h-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 text-left">
-                    <p className="font-medium">
-                      {profile.username || "Без имени"}
-                    </p>
-                    {profile.phone_number && (
-                      <p className="text-sm text-muted-foreground">
-                        {profile.phone_number}
+              {results.map((profile) => {
+                const alreadyRequested = sentRequests.has(profile.id);
+                return (
+                  <button
+                    key={profile.id}
+                    onClick={() => !alreadyRequested && onSelectContact(profile)}
+                    disabled={alreadyRequested}
+                    className="w-full flex items-center gap-3 p-3 hover:bg-accent rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Avatar>
+                      <AvatarImage src={profile.avatar_url || undefined} />
+                      <AvatarFallback>
+                        <User className="w-4 h-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium">
+                        {profile.username || "Без имени"}
                       </p>
-                    )}
-                  </div>
-                </button>
-              ))}
+                      {profile.phone_number && (
+                        <p className="text-sm text-muted-foreground">
+                          {profile.phone_number}
+                        </p>
+                      )}
+                      {alreadyRequested && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Запрос отправлен
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <div className="p-4 text-center text-muted-foreground">
