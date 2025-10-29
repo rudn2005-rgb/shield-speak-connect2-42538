@@ -48,16 +48,17 @@ const Messenger = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // Search by phone number or username
       const { data: targetProfile, error: profileError } = await (supabase as any)
         .from("profiles")
         .select("id")
-        .eq("phone_number", newChatEmail)
+        .or(`phone_number.eq.${newChatEmail},username.eq.${newChatEmail}`)
         .maybeSingle();
 
       if (profileError) throw profileError;
 
       if (!targetProfile) {
-        toast.error("Пользователь не найден");
+        toast.error("Пользователь не найден. Проверьте номер телефона или имя пользователя.");
         return;
       }
 
@@ -149,18 +150,21 @@ const Messenger = () => {
               </DialogHeader>
               <form onSubmit={createNewChat} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email или телефон пользователя</Label>
+                  <Label htmlFor="search">Номер телефона или имя пользователя</Label>
                   <Input
-                    id="email"
+                    id="search"
                     type="text"
-                    placeholder="user@example.com"
+                    placeholder="+7 (999) 123-45-67 или username"
                     value={newChatEmail}
                     onChange={(e) => setNewChatEmail(e.target.value)}
                     required
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Введите номер телефона или имя пользователя для поиска контакта
+                  </p>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Создание..." : "Создать чат"}
+                  {loading ? "Поиск..." : "Найти и создать чат"}
                 </Button>
               </form>
             </DialogContent>

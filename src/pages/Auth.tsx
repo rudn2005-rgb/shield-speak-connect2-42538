@@ -13,6 +13,7 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -51,7 +52,8 @@ const Auth = () => {
           password,
           options: {
             data: {
-              display_name: displayName,
+              username: displayName,
+              phone_number: phoneNumber,
             },
             emailRedirectTo: `${window.location.origin}/`,
           },
@@ -103,17 +105,31 @@ const Auth = () => {
 
           <form onSubmit={handleAuth} className="space-y-4">
             {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="displayName">Имя</Label>
-                <Input
-                  id="displayName"
-                  type="text"
-                  placeholder="Введите ваше имя"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  required={!isLogin}
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="displayName">Имя пользователя</Label>
+                  <Input
+                    id="displayName"
+                    type="text"
+                    placeholder="Введите ваше имя"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    required={!isLogin}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="phoneNumber">Номер телефона</Label>
+                  <Input
+                    id="phoneNumber"
+                    type="tel"
+                    placeholder="+7 (999) 123-45-67"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    required={!isLogin}
+                  />
+                </div>
+              </>
             )}
 
             <div className="space-y-2">
