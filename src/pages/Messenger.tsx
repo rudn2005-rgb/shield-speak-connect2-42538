@@ -3,24 +3,25 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import ChatList from "@/components/ChatList";
 import ChatWindow from "@/components/ChatWindow";
+import ContactSearch from "@/components/ContactSearch";
 import { LogOut, Plus, Shield, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
 const Messenger = () => {
   const navigate = useNavigate();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
-  const [newChatEmail, setNewChatEmail] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string>("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         navigate("/auth");
+      } else {
+        setCurrentUserId(session.user.id);
       }
     });
 
@@ -28,6 +29,8 @@ const Messenger = () => {
       (event, session) => {
         if (!session) {
           navigate("/auth");
+        } else {
+          setCurrentUserId(session.user.id);
         }
       }
     );
@@ -40,80 +43,62 @@ const Messenger = () => {
     navigate("/auth");
   };
 
-  const createNewChat = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const createNewChat = async (targetProfileId: string) => {
     setLoading(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Search by phone number or username
-      const { data: targetProfile, error: profileError } = await (supabase as any)
-        .from("profiles")
-        .select("id")
-        .or(`phone_number.eq.${newChatEmail},username.eq.${newChatEmail}`)
-        .maybeSingle();
-
-      if (profileError) throw profileError;
-
-      if (!targetProfile) {
-        toast.error("Пользователь не найден. Проверьте номер телефона или имя пользователя.");
-        return;
-      }
-
-      if (targetProfile.id === user.id) {
+      if (targetProfileId === user.id) {
         toast.error("Нельзя создать чат с самим собой");
         return;
       }
 
-      const { data: existingMembers } = await (supabase as any)
+      const { data: existingMembers } = await supabase
         .from("chat_members")
         .select("chat_id")
         .eq("user_id", user.id);
 
       if (existingMembers) {
         for (const member of existingMembers) {
-          const { data: otherMember } = await (supabase as any)
+          const { data: otherMember } = await supabase
             .from("chat_members")
             .select("chat_id")
             .eq("chat_id", member.chat_id)
-            .eq("user_id", targetProfile.id)
+            .eq("user_id", targetProfileId)
             .maybeSingle();
 
           if (otherMember) {
             setSelectedChatId(member.chat_id);
             setIsDialogOpen(false);
-            setNewChatEmail("");
             toast.success("Чат уже существует");
             return;
           }
         }
       }
 
-      const { data: newChat, error: chatError } = await (supabase as any)
+      const { data: newChat, error: chatError } = await supabase
         .from("chats")
         .insert({
           is_group: false,
-          created_by: user.id,
         })
         .select()
         .single();
 
       if (chatError) throw chatError;
 
-      const { error: membersError } = await (supabase as any)
+      const { error: membersError } = await supabase
         .from("chat_members")
         .insert([
           { chat_id: newChat!.id, user_id: user.id },
-          { chat_id: newChat!.id, user_id: targetProfile!.id },
+          { chat_id: newChat!.id, user_id: targetProfileId },
         ]);
 
       if (membersError) throw membersError;
 
       setSelectedChatId(newChat!.id);
       setIsDialogOpen(false);
-      setNewChatEmail("");
       toast.success("Чат создан!");
     } catch (error: any) {
       toast.error(error.message || "Ошибка создания чата");
@@ -148,25 +133,10 @@ const Messenger = () => {
               <DialogHeader>
                 <DialogTitle>Создать новый чат</DialogTitle>
               </DialogHeader>
-              <form onSubmit={createNewChat} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="search">Номер телефона или имя пользователя</Label>
-                  <Input
-                    id="search"
-                    type="text"
-                    placeholder="+7 (999) 123-45-67 или username"
-                    value={newChatEmail}
-                    onChange={(e) => setNewChatEmail(e.target.value)}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Введите номер телефона или имя пользователя для поиска контакта
-                  </p>
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Поиск..." : "Найти и создать чат"}
-                </Button>
-              </form>
+              <ContactSearch
+                onSelectContact={(profile) => createNewChat(profile.id)}
+                currentUserId={currentUserId}
+              />
             </DialogContent>
           </Dialog>
         </div>
