@@ -29,13 +29,15 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [chatName, setChatName] = useState("");
+  const [isOnline, setIsOnline] = useState(false);
+  const [otherUserId, setOtherUserId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadMessages();
     loadChatInfo();
 
-    const channel = supabase
+    const messagesChannel = supabase
       .channel(`messages-${chatId}`)
       .on(
         "postgres_changes",
@@ -52,9 +54,50 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(messagesChannel);
     };
   }, [chatId]);
+
+  // Отслеживаем статус другого пользователя
+  useEffect(() => {
+    if (!otherUserId) return;
+
+    const loadUserStatus = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("status")
+        .eq("id", otherUserId)
+        .single();
+
+      if (data) {
+        setIsOnline(data.status === "online");
+      }
+    };
+
+    loadUserStatus();
+
+    const statusChannel = supabase
+      .channel(`user-status-${otherUserId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: `id=eq.${otherUserId}`,
+        },
+        (payload: any) => {
+          if (payload.new) {
+            setIsOnline(payload.new.status === "online");
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(statusChannel);
+    };
+  }, [otherUserId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -85,14 +128,17 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
           .single();
 
         if (members) {
+          setOtherUserId(members.user_id);
+          
           const { data: profile } = await (supabase as any)
             .from("profiles")
-            .select("display_name")
+            .select("display_name, status")
             .eq("id", members.user_id)
             .single();
 
           if (profile) {
             setChatName(profile.display_name);
+            setIsOnline(profile.status === "online");
           }
         }
       } else if (chat) {
@@ -177,7 +223,9 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
           </Avatar>
           <div>
             <h2 className="font-semibold">{chatName}</h2>
-            <p className="text-xs text-muted-foreground">онлайн</p>
+            <p className="text-xs text-muted-foreground">
+              {isOnline ? "онлайн" : "не в сети"}
+            </p>
           </div>
         </div>
 

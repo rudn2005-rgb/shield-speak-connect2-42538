@@ -8,6 +8,7 @@ import ChatList from "@/components/ChatList";
 import ChatWindow from "@/components/ChatWindow";
 import ContactSearch from "@/components/ContactSearch";
 import ChatRequests from "@/components/ChatRequests";
+import { useUserPresence } from "@/hooks/useUserPresence";
 import { LogOut, Plus, Shield, MessageCircle, Bell } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,6 +20,9 @@ const Messenger = () => {
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+
+  // Отслеживаем статус пользователя
+  useUserPresence(currentUserId || null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
