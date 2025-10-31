@@ -7,6 +7,17 @@ import { Send, Phone, Video, MoreVertical } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
+import { z } from "zod";
+import { getUserFriendlyError } from "@/lib/errorHandler";
+
+const messageSchema = z.string()
+  .trim()
+  .min(1, "Сообщение не может быть пустым")
+  .max(2000, "Сообщение слишком длинное (максимум 2000 символов)")
+  .refine(
+    (msg) => !/[\x00-\x08\x0B-\x0C\x0E-\x1F]/.test(msg),
+    "Сообщение содержит недопустимые символы"
+  );
 
 interface Message {
   id: string;
@@ -178,13 +189,15 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !currentUserId) return;
+    if (!currentUserId) return;
 
     try {
+      const validatedContent = messageSchema.parse(newMessage);
+
       const { error } = await (supabase as any).from("messages").insert({
         chat_id: chatId,
         sender_id: currentUserId,
-        content: newMessage.trim(),
+        content: validatedContent,
       });
 
       if (error) throw error;
@@ -196,8 +209,11 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
 
       setNewMessage("");
     } catch (error: any) {
-      toast.error("Ошибка отправки сообщения");
-      console.error(error);
+      if (error instanceof z.ZodError) {
+        toast.error(error.errors[0].message);
+      } else {
+        toast.error(getUserFriendlyError(error));
+      }
     }
   };
 
