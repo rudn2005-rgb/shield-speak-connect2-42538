@@ -11,8 +11,8 @@ import { getUserFriendlyError } from "@/lib/errorHandler";
 interface Profile {
   id: string;
   username: string | null;
-  phone_number: string | null;
   avatar_url: string | null;
+  display_name: string | null;
 }
 
 interface ChatRequest {
@@ -50,7 +50,7 @@ const ChatRequests = ({ currentUserId, onRequestAccepted }: ChatRequestsProps) =
           incomingData.map(async (request) => {
             const { data: sender } = await supabase
               .from("profiles")
-              .select("id, username, phone_number, avatar_url")
+              .select("id, username, avatar_url, display_name")
               .eq("id", request.sender_id)
               .single();
             return { ...request, sender };
@@ -72,7 +72,7 @@ const ChatRequests = ({ currentUserId, onRequestAccepted }: ChatRequestsProps) =
           outgoingData.map(async (request) => {
             const { data: receiver } = await supabase
               .from("profiles")
-              .select("id, username, phone_number, avatar_url")
+              .select("id, username, avatar_url, display_name")
               .eq("id", request.receiver_id)
               .single();
             return { ...request, receiver };
@@ -214,13 +214,8 @@ const ChatRequests = ({ currentUserId, onRequestAccepted }: ChatRequestsProps) =
                   </Avatar>
                   <div className="flex-1">
                     <p className="font-medium">
-                      {request.sender?.username || "Без имени"}
+                      {request.sender?.display_name || request.sender?.username || "Без имени"}
                     </p>
-                    {request.sender?.phone_number && (
-                      <p className="text-sm text-muted-foreground">
-                        {request.sender.phone_number}
-                      </p>
-                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -269,13 +264,8 @@ const ChatRequests = ({ currentUserId, onRequestAccepted }: ChatRequestsProps) =
                   </Avatar>
                   <div className="flex-1">
                     <p className="font-medium">
-                      {request.receiver?.username || "Без имени"}
+                      {request.receiver?.display_name || request.receiver?.username || "Без имени"}
                     </p>
-                    {request.receiver?.phone_number && (
-                      <p className="text-sm text-muted-foreground">
-                        {request.receiver.phone_number}
-                      </p>
-                    )}
                     <p className="text-xs text-muted-foreground mt-1">
                       Ожидает подтверждения...
                     </p>
