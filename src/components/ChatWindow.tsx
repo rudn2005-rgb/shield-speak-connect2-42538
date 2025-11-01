@@ -9,6 +9,7 @@ import { ru } from "date-fns/locale";
 import { toast } from "sonner";
 import { z } from "zod";
 import { getUserFriendlyError } from "@/lib/errorHandler";
+import VideoCall from "./VideoCall";
 
 const messageSchema = z.string()
   .trim()
@@ -42,6 +43,8 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
   const [chatName, setChatName] = useState("");
   const [otherUserId, setOtherUserId] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(false);
+  const [isVideoCallOpen, setIsVideoCallOpen] = useState(false);
+  const [isIncomingCall, setIsIncomingCall] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -243,10 +246,24 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" disabled>
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => toast.info("Голосовые звонки будут доступны в следующей версии")}
+          >
             <Phone className="w-5 h-5" />
           </Button>
-          <Button variant="ghost" size="icon" disabled>
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => {
+              if (!otherUserId) {
+                toast.error("Не удалось определить собеседника");
+                return;
+              }
+              setIsVideoCallOpen(true);
+            }}
+          >
             <Video className="w-5 h-5" />
           </Button>
           <Button variant="ghost" size="icon">
@@ -313,6 +330,17 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
           </Button>
         </div>
       </form>
+
+      {currentUserId && otherUserId && (
+        <VideoCall
+          isOpen={isVideoCallOpen}
+          onClose={() => setIsVideoCallOpen(false)}
+          chatId={chatId}
+          currentUserId={currentUserId}
+          otherUserId={otherUserId}
+          isInitiator={true}
+        />
+      )}
     </div>
   );
 };
