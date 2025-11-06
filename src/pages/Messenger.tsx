@@ -156,22 +156,27 @@ const Messenger = () => {
         }
       }
 
-      // Проверяем существующий запрос
+      // Проверяем существующий pending запрос
       const { data: existingRequest } = await supabase
         .from("chat_requests")
         .select("id, status")
         .eq("sender_id", user.id)
         .eq("receiver_id", targetProfileId)
+        .eq("status", "pending")
         .maybeSingle();
 
       if (existingRequest) {
-        if (existingRequest.status === "pending") {
-          toast.info("Запрос уже отправлен");
-        } else {
-          toast.info("Запрос был отклонен");
-        }
+        toast.info("Запрос уже отправлен");
         return;
       }
+
+      // Удаляем старые отклоненные/принятые запросы
+      await supabase
+        .from("chat_requests")
+        .delete()
+        .eq("sender_id", user.id)
+        .eq("receiver_id", targetProfileId)
+        .in("status", ["rejected", "accepted"]);
 
       // Отправляем запрос
       const { error } = await supabase
