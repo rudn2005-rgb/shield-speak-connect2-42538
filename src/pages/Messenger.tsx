@@ -245,8 +245,9 @@ const Messenger = () => {
               </DialogHeader>
               <ChatRequests
                 currentUserId={currentUserId}
-                onRequestAccepted={() => {
+                onRequestAccepted={(chatId) => {
                   setIsRequestsOpen(false);
+                  setSelectedChatId(chatId);
                 }}
               />
             </DialogContent>

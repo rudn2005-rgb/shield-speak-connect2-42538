@@ -27,7 +27,7 @@ interface ChatRequest {
 
 interface ChatRequestsProps {
   currentUserId: string;
-  onRequestAccepted: () => void;
+  onRequestAccepted: (chatId: string) => void;
 }
 
 const ChatRequests = ({ currentUserId, onRequestAccepted }: ChatRequestsProps) => {
@@ -138,8 +138,8 @@ const ChatRequests = ({ currentUserId, onRequestAccepted }: ChatRequestsProps) =
 
       if (updateError) throw updateError;
 
-      toast.success("Запрос принят, чат создан!");
-      onRequestAccepted();
+      toast.success("Запрос принят! Открываю чат...");
+      onRequestAccepted(newChatId);
     } catch (error: any) {
       toast.error(getUserFriendlyError(error));
     } finally {

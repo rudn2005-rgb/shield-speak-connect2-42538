@@ -30,6 +30,8 @@ const ContactSearch = ({ onSelectContact, currentUserId }: ContactSearchProps) =
   const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    if (!currentUserId) return;
+
     const loadSentRequests = async () => {
       try {
         const { data } = await supabase
@@ -47,6 +49,25 @@ const ContactSearch = ({ onSelectContact, currentUserId }: ContactSearchProps) =
     };
 
     loadSentRequests();
+
+    // Real-time updates for sent requests
+    const channel = supabase
+      .channel("sent_requests_updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "chat_requests",
+          filter: `sender_id=eq.${currentUserId}`,
+        },
+        () => loadSentRequests()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [currentUserId]);
 
   useEffect(() => {
