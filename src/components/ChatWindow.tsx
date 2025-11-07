@@ -58,7 +58,7 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [chatName, setChatName] = useState("");
+  const [chatName, setChatName] = useState<string | null>(null);
   const [otherUserId, setOtherUserId] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(false);
   const [isVideoCallOpen, setIsVideoCallOpen] = useState(false);
@@ -252,11 +252,11 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
         <div className="flex items-center gap-3">
           <Avatar>
             <AvatarFallback className="bg-primary/10 text-primary">
-              {chatName.charAt(0).toUpperCase()}
+              {(chatName && chatName.charAt(0).toUpperCase()) || "?"}
             </AvatarFallback>
           </Avatar>
           <div>
-            <h2 className="font-semibold">{chatName}</h2>
+            <h2 className="font-semibold">{chatName || "Неизвестный контакт"}</h2>
             <p className="text-xs text-muted-foreground">
               {isOnline ? "онлайн" : "не в сети"}
             </p>
@@ -307,7 +307,7 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
                   <Avatar className="w-8 h-8">
                     <AvatarImage src={message.sender?.avatar_url || undefined} />
                     <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                      {message.sender?.display_name?.charAt(0).toUpperCase()}
+                      {(message.sender?.display_name && message.sender.display_name.charAt(0).toUpperCase()) || "?"}
                     </AvatarFallback>
                   </Avatar>
                 )}
