@@ -35,6 +35,7 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
   useEffect(() => {
     if (!isOpen) return;
 
+    console.log("VideoCall opened, isInitiator:", isInitiator);
     initializeCall();
 
     return () => {
@@ -44,12 +45,14 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
 
   const initializeCall = async () => {
     try {
+      console.log("Initializing call, requesting media access...");
       // Получаем доступ к камере и микрофону
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
       });
       
+      console.log("Media access granted, got stream:", stream.id);
       setLocalStream(stream);
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
@@ -58,25 +61,30 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
       // Создаем peer connection
       const pc = new RTCPeerConnection(configuration);
       setPeerConnection(pc);
+      console.log("PeerConnection created");
 
       // Добавляем локальные треки
       stream.getTracks().forEach((track) => {
+        console.log("Adding track:", track.kind);
         pc.addTrack(track, stream);
       });
 
       // Обрабатываем входящие треки
       pc.ontrack = (event) => {
+        console.log("Received remote track:", event.track.kind);
         const [remoteStream] = event.streams;
         setRemoteStream(remoteStream);
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStream;
         }
         setCallStatus("connected");
+        toast.success("Звонок подключен");
       };
 
       // Обрабатываем ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate) {
+          console.log("Sending ICE candidate");
           sendSignalingMessage({
             type: "ice-candidate",
             candidate: event.candidate,
@@ -84,10 +92,20 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
         }
       };
 
+      // Обрабатываем изменение состояния соединения
+      pc.oniceconnectionstatechange = () => {
+        console.log("ICE connection state:", pc.iceConnectionState);
+        if (pc.iceConnectionState === "failed") {
+          toast.error("Ошибка соединения");
+        }
+      };
+
       // Если мы инициатор звонка, создаем offer
       if (isInitiator) {
+        console.log("Creating offer as initiator");
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
+        console.log("Sending offer");
         sendSignalingMessage({
           type: "offer",
           offer: offer,
@@ -124,20 +142,26 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
         if (payload.to !== currentUserId) return;
 
         const { message } = payload;
+        console.log("Received signaling message:", message.type);
 
         if (message.type === "offer") {
+          console.log("Processing offer");
           await pc.setRemoteDescription(new RTCSessionDescription(message.offer));
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
+          console.log("Sending answer");
           sendSignalingMessage({
             type: "answer",
             answer: answer,
           });
         } else if (message.type === "answer") {
+          console.log("Processing answer");
           await pc.setRemoteDescription(new RTCSessionDescription(message.answer));
         } else if (message.type === "ice-candidate") {
+          console.log("Adding ICE candidate");
           await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
         } else if (message.type === "end-call") {
+          console.log("Call ended by remote peer");
           handleEndCall();
         }
       })

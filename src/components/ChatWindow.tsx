@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { getUserFriendlyError } from "@/lib/errorHandler";
 import VideoCall from "./VideoCall";
+import IncomingCallNotification from "./IncomingCallNotification";
 
 const messageSchema = z.string()
   .trim()
@@ -63,6 +64,8 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
   const [isOnline, setIsOnline] = useState(false);
   const [isVideoCallOpen, setIsVideoCallOpen] = useState(false);
   const [isIncomingCall, setIsIncomingCall] = useState(false);
+  const [incomingCallFrom, setIncomingCallFrom] = useState<string | null>(null);
+  const [isCallInitiator, setIsCallInitiator] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -90,9 +93,9 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
     };
   }, [chatId]);
 
-  // Отслеживание онлайн статуса собеседника
+  // Отслеживание онлайн статуса собеседника и входящих звонков
   useEffect(() => {
-    if (!otherUserId) return;
+    if (!otherUserId || !currentUserId) return;
 
     const loadStatus = async () => {
       const { data } = await supabase
@@ -124,10 +127,36 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
       )
       .subscribe();
 
+    // Прослушивание входящих звонков
+    const callChannel = supabase
+      .channel(`call-notifications-${currentUserId}`)
+      .on("broadcast", { event: "incoming-call" }, async ({ payload }) => {
+        console.log("Incoming call notification:", payload);
+        if (payload.to === currentUserId && payload.from === otherUserId) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("display_name")
+            .eq("id", payload.from)
+            .single();
+          
+          setIncomingCallFrom(profile?.display_name || "Неизвестный");
+          setIsIncomingCall(true);
+        }
+      })
+      .on("broadcast", { event: "call-declined" }, ({ payload }) => {
+        console.log("Call declined:", payload);
+        if (payload.to === currentUserId) {
+          toast.error("Звонок отклонен");
+          setIsVideoCallOpen(false);
+        }
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(statusChannel);
+      supabase.removeChannel(callChannel);
     };
-  }, [otherUserId]);
+  }, [otherUserId, currentUserId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -313,12 +342,27 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
           <Button 
             variant="ghost" 
             size="icon"
-            onClick={() => {
-              if (!otherUserId) {
+            onClick={async () => {
+              if (!otherUserId || !currentUserId) {
                 toast.error("Не удалось определить собеседника");
                 return;
               }
+              
+              // Отправляем уведомление о звонке
+              const notificationChannel = supabase.channel(`call-notifications-${otherUserId}`);
+              await notificationChannel.send({
+                type: "broadcast",
+                event: "incoming-call",
+                payload: {
+                  from: currentUserId,
+                  to: otherUserId,
+                  chatId: chatId,
+                },
+              });
+              
+              setIsCallInitiator(true);
               setIsVideoCallOpen(true);
+              toast.info("Звонок...");
             }}
           >
             <Video className="w-5 h-5" />
@@ -388,14 +432,47 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
         </div>
       </form>
 
+      {isIncomingCall && incomingCallFrom && currentUserId && otherUserId && (
+        <IncomingCallNotification
+          callerName={incomingCallFrom}
+          onAccept={() => {
+            console.log("Accepting call from:", incomingCallFrom);
+            setIsIncomingCall(false);
+            setIsCallInitiator(false);
+            setIsVideoCallOpen(true);
+          }}
+          onDecline={async () => {
+            console.log("Declining call from:", incomingCallFrom);
+            setIsIncomingCall(false);
+            setIncomingCallFrom(null);
+            
+            // Отправляем уведомление об отклонении звонка
+            const notificationChannel = supabase.channel(`call-notifications-${otherUserId}`);
+            await notificationChannel.send({
+              type: "broadcast",
+              event: "call-declined",
+              payload: {
+                from: currentUserId,
+                to: otherUserId,
+              },
+            });
+            
+            toast.info("Звонок отклонен");
+          }}
+        />
+      )}
+
       {currentUserId && otherUserId && (
         <VideoCall
           isOpen={isVideoCallOpen}
-          onClose={() => setIsVideoCallOpen(false)}
+          onClose={() => {
+            setIsVideoCallOpen(false);
+            setIsCallInitiator(false);
+          }}
           chatId={chatId}
           currentUserId={currentUserId}
           otherUserId={otherUserId}
-          isInitiator={true}
+          isInitiator={isCallInitiator}
         />
       )}
     </div>
