@@ -136,10 +136,11 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
 
       // Если мы инициатор звонка, создаем offer
       if (isInitiator) {
-        // Небольшая задержка чтобы убедиться что второй пользователь подписался
-        await new Promise(resolve => setTimeout(resolve, 1000));
         console.log("Creating offer as initiator");
-        const offer = await pc.createOffer();
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: true,
+        });
         await pc.setLocalDescription(offer);
         console.log("Sending offer");
         await sendSignalingMessage({
@@ -178,9 +179,13 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
   };
 
   const subscribeToSignaling = async (pc: RTCPeerConnection) => {
-    return new Promise<void>((resolve) => {
+    return new Promise<void>((resolve, reject) => {
       const channel = supabase
-        .channel(`video-call-${chatId}`)
+        .channel(`video-call-${chatId}`, {
+          config: {
+            broadcast: { self: false },
+          },
+        })
         .on("broadcast", { event: "signaling" }, async ({ payload }) => {
           if (payload.to !== currentUserId) return;
 
@@ -200,10 +205,14 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
               });
             } else if (message.type === "answer") {
               console.log("Processing answer");
-              await pc.setRemoteDescription(new RTCSessionDescription(message.answer));
+              if (pc.signalingState === "have-local-offer") {
+                await pc.setRemoteDescription(new RTCSessionDescription(message.answer));
+              }
             } else if (message.type === "ice-candidate") {
               console.log("Adding ICE candidate");
-              await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+              if (pc.remoteDescription) {
+                await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+              }
             } else if (message.type === "end-call") {
               console.log("Call ended by remote peer");
               handleEndCall();
@@ -217,6 +226,8 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
           if (status === "SUBSCRIBED") {
             channelRef.current = channel;
             resolve();
+          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            reject(new Error(`Channel subscription failed: ${status}`));
           }
         });
     });
