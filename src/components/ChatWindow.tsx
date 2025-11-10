@@ -10,9 +10,19 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { getUserFriendlyError } from "@/lib/errorHandler";
 import { isUserOnline } from "@/utils/userStatus";
-import VideoCall from "./VideoCall";
-import AudioCall from "./AudioCall";
-import IncomingCallNotification from "./IncomingCallNotification";
+import FileUpload from "./FileUpload";
+import MessageActions from "./MessageActions";
+import MessageAttachment from "./MessageAttachment";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const messageSchema = z.string()
   .trim()
@@ -46,6 +56,12 @@ interface Message {
   content: string;
   sender_id: string;
   created_at: string;
+  edited_at?: string | null;
+  is_deleted?: boolean;
+  file_url?: string | null;
+  file_name?: string | null;
+  file_size?: number | null;
+  file_type?: string | null;
   sender?: {
     display_name: string;
     avatar_url: string | null;
@@ -64,12 +80,9 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
   const [chatName, setChatName] = useState<string | null>(null);
   const [otherUserId, setOtherUserId] = useState<string | null>(null);
   const [otherUserStatus, setOtherUserStatus] = useState<{status: string | null, lastSeen: string | null}>({status: null, lastSeen: null});
-  const [isVideoCallOpen, setIsVideoCallOpen] = useState(false);
-  const [isAudioCallOpen, setIsAudioCallOpen] = useState(false);
-  const [isIncomingCall, setIsIncomingCall] = useState(false);
-  const [incomingCallFrom, setIncomingCallFrom] = useState<string | null>(null);
-  const [incomingCallType, setIncomingCallType] = useState<"video" | "audio">("video");
-  const [isCallInitiator, setIsCallInitiator] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -81,7 +94,7 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "messages",
           filter: `chat_id=eq.${chatId}`,
@@ -97,7 +110,7 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
     };
   }, [chatId]);
 
-  // Отслеживание онлайн статуса собеседника и входящих звонков
+  // Отслеживание онлайн статуса собеседника
   useEffect(() => {
     if (!otherUserId || !currentUserId) return;
 
@@ -137,36 +150,8 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
       )
       .subscribe();
 
-    // Прослушивание входящих звонков
-    const callChannel = supabase
-      .channel(`call-notifications-${currentUserId}`)
-      .on("broadcast", { event: "incoming-call" }, async ({ payload }) => {
-        console.log("Incoming call notification:", payload);
-        if (payload.to === currentUserId && payload.from === otherUserId) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("display_name")
-            .eq("id", payload.from)
-            .single();
-          
-          setIncomingCallFrom(profile?.display_name || "Неизвестный");
-          setIncomingCallType(payload.type || "video");
-          setIsIncomingCall(true);
-        }
-      })
-      .on("broadcast", { event: "call-declined" }, ({ payload }) => {
-        console.log("Call declined:", payload);
-        if (payload.to === currentUserId) {
-          toast.error("Звонок отклонен");
-          setIsVideoCallOpen(false);
-          setIsAudioCallOpen(false);
-        }
-      })
-      .subscribe();
-
     return () => {
       supabase.removeChannel(statusChannel);
-      supabase.removeChannel(callChannel);
     };
   }, [otherUserId, currentUserId]);
 
@@ -294,24 +279,75 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUserId) return;
+    if (!newMessage.trim() && !selectedFile) return;
 
     try {
-      const validatedContent = messageSchema.parse(newMessage);
+      let fileUrl = null;
+      let fileName = null;
+      let fileSize = null;
+      let fileType = null;
 
-      const { error } = await (supabase as any).from("messages").insert({
-        chat_id: chatId,
-        sender_id: currentUserId,
-        content: validatedContent,
-      });
+      // Загрузка файла если выбран
+      if (selectedFile) {
+        const fileExt = selectedFile.name.split('.').pop();
+        const filePath = `${chatId}/${currentUserId}-${Date.now()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('message-attachments')
+          .upload(filePath, selectedFile);
 
-      if (error) throw error;
+        if (uploadError) throw uploadError;
 
-      await (supabase as any)
+        const { data: urlData } = supabase.storage
+          .from('message-attachments')
+          .getPublicUrl(filePath);
+
+        fileUrl = urlData.publicUrl;
+        fileName = selectedFile.name;
+        fileSize = selectedFile.size;
+        fileType = selectedFile.type;
+      }
+
+      // Валидация сообщения если есть текст
+      const validatedContent = newMessage.trim() 
+        ? messageSchema.parse(newMessage)
+        : "";
+
+      if (editingMessageId) {
+        // Обновление существующего сообщения
+        const { error } = await supabase
+          .from("messages")
+          .update({
+            content: validatedContent,
+            edited_at: new Date().toISOString(),
+          })
+          .eq("id", editingMessageId);
+
+        if (error) throw error;
+        toast.success("Сообщение обновлено");
+        setEditingMessageId(null);
+      } else {
+        // Создание нового сообщения
+        const { error } = await supabase.from("messages").insert({
+          chat_id: chatId,
+          sender_id: currentUserId,
+          content: validatedContent,
+          file_url: fileUrl,
+          file_name: fileName,
+          file_size: fileSize,
+          file_type: fileType,
+        });
+
+        if (error) throw error;
+      }
+
+      await supabase
         .from("chats")
         .update({ updated_at: new Date().toISOString() })
         .eq("id", chatId);
 
       setNewMessage("");
+      setSelectedFile(null);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
@@ -319,6 +355,51 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
         toast.error(getUserFriendlyError(error));
       }
     }
+  };
+
+  const handleEditMessage = (message: Message) => {
+    setEditingMessageId(message.id);
+    setNewMessage(message.content);
+  };
+
+  const handleDeleteMessage = async () => {
+    if (!deletingMessageId) return;
+
+    try {
+      const { error } = await supabase
+        .from("messages")
+        .update({ is_deleted: true, content: "Сообщение удалено" })
+        .eq("id", deletingMessageId);
+
+      if (error) throw error;
+      toast.success("Сообщение удалено");
+    } catch (error: any) {
+      toast.error(getUserFriendlyError(error));
+    } finally {
+      setDeletingMessageId(null);
+    }
+  };
+
+  const handleStartCall = async (callType: "audio" | "video") => {
+    if (!otherUserId || !currentUserId) {
+      toast.error("Не удалось определить собеседника");
+      return;
+    }
+    
+    // Send global notification
+    const channel = supabase.channel(`global-call-notifications-${otherUserId}`);
+    await channel.subscribe();
+    await channel.send({
+      type: "broadcast",
+      event: "incoming-call",
+      payload: {
+        chatId: chatId,
+        callerId: currentUserId,
+        callType: callType,
+      },
+    });
+    
+    toast.info("Звонок отправлен...");
   };
 
   if (loading) {
@@ -350,58 +431,14 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
           <Button 
             variant="ghost" 
             size="icon"
-            onClick={async () => {
-              if (!otherUserId || !currentUserId) {
-                toast.error("Не удалось определить собеседника");
-                return;
-              }
-              
-              // Отправляем уведомление о голосовом звонке
-              const notificationChannel = supabase.channel(`call-notifications-${otherUserId}`);
-              await notificationChannel.send({
-                type: "broadcast",
-                event: "incoming-call",
-                payload: {
-                  from: currentUserId,
-                  to: otherUserId,
-                  chatId: chatId,
-                  type: "audio",
-                },
-              });
-              
-              setIsCallInitiator(true);
-              setIsAudioCallOpen(true);
-              toast.info("Звонок...");
-            }}
+            onClick={() => handleStartCall("audio")}
           >
             <Phone className="w-5 h-5" />
           </Button>
           <Button 
             variant="ghost" 
             size="icon"
-            onClick={async () => {
-              if (!otherUserId || !currentUserId) {
-                toast.error("Не удалось определить собеседника");
-                return;
-              }
-              
-              // Отправляем уведомление о видеозвонке
-              const notificationChannel = supabase.channel(`call-notifications-${otherUserId}`);
-              await notificationChannel.send({
-                type: "broadcast",
-                event: "incoming-call",
-                payload: {
-                  from: currentUserId,
-                  to: otherUserId,
-                  chatId: chatId,
-                  type: "video",
-                },
-              });
-              
-              setIsCallInitiator(true);
-              setIsVideoCallOpen(true);
-              toast.info("Звонок...");
-            }}
+            onClick={() => handleStartCall("video")}
           >
             <Video className="w-5 h-5" />
           </Button>
@@ -414,10 +451,12 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => {
           const isOwn = message.sender_id === currentUserId;
+          const isDeleted = message.is_deleted;
+          
           return (
             <div
               key={message.id}
-              className={`flex ${isOwn ? "justify-end" : "justify-start"}`}
+              className={`flex group ${isOwn ? "justify-end" : "justify-start"}`}
             >
               <div
                 className={`flex gap-2 max-w-[70%] ${
@@ -432,22 +471,41 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
                     </AvatarFallback>
                   </Avatar>
                 )}
-                <div>
+                <div className="flex-1">
                   <div
                     className={`rounded-2xl px-4 py-2 ${
                       isOwn
                         ? "bg-primary text-primary-foreground"
                         : "bg-secondary text-secondary-foreground"
-                    }`}
+                    } ${isDeleted ? "opacity-60 italic" : ""}`}
                   >
                     <p className="text-sm">{message.content}</p>
+                    {message.file_url && !isDeleted && (
+                      <MessageAttachment
+                        fileUrl={message.file_url}
+                        fileName={message.file_name || "file"}
+                        fileSize={message.file_size || undefined}
+                        fileType={message.file_type || undefined}
+                      />
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1 px-2">
-                    {formatDistanceToNow(new Date(message.created_at), {
-                      addSuffix: true,
-                      locale: ru,
-                    })}
-                  </p>
+                  <div className="flex items-center gap-2 mt-1 px-2">
+                    <p className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(message.created_at), {
+                        addSuffix: true,
+                        locale: ru,
+                      })}
+                    </p>
+                    {message.edited_at && (
+                      <span className="text-xs text-muted-foreground">(ред.)</span>
+                    )}
+                    {isOwn && !isDeleted && (
+                      <MessageActions
+                        onEdit={() => handleEditMessage(message)}
+                        onDelete={() => setDeletingMessageId(message.id)}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -457,81 +515,54 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
       </div>
 
       <form onSubmit={sendMessage} className="p-4 border-t border-border bg-card">
-        <div className="flex gap-2">
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Введите сообщение..."
-            className="flex-1"
+        <div className="flex gap-2 items-end">
+          <FileUpload
+            onFileSelect={setSelectedFile}
+            selectedFile={selectedFile}
+            onClearFile={() => setSelectedFile(null)}
           />
-          <Button type="submit" disabled={!newMessage.trim()}>
+          <div className="flex-1">
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder={editingMessageId ? "Редактировать сообщение..." : "Введите сообщение..."}
+              className="flex-1"
+            />
+            {editingMessageId && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setEditingMessageId(null);
+                  setNewMessage("");
+                }}
+                className="mt-1"
+              >
+                Отменить редактирование
+              </Button>
+            )}
+          </div>
+          <Button type="submit" disabled={!newMessage.trim() && !selectedFile}>
             <Send className="w-4 h-4" />
           </Button>
         </div>
       </form>
 
-      {isIncomingCall && incomingCallFrom && currentUserId && otherUserId && (
-        <IncomingCallNotification
-          callerName={`${incomingCallFrom} (${incomingCallType === "audio" ? "голосовой" : "видео"})`}
-          onAccept={() => {
-            console.log("Accepting call from:", incomingCallFrom);
-            setIsIncomingCall(false);
-            setIsCallInitiator(false);
-            if (incomingCallType === "audio") {
-              setIsAudioCallOpen(true);
-            } else {
-              setIsVideoCallOpen(true);
-            }
-          }}
-          onDecline={async () => {
-            console.log("Declining call from:", incomingCallFrom);
-            setIsIncomingCall(false);
-            setIncomingCallFrom(null);
-            
-            // Отправляем уведомление об отклонении звонка
-            const notificationChannel = supabase.channel(`call-notifications-${otherUserId}`);
-            await notificationChannel.send({
-              type: "broadcast",
-              event: "call-declined",
-              payload: {
-                from: currentUserId,
-                to: otherUserId,
-              },
-            });
-            
-            toast.info("Звонок отклонен");
-          }}
-        />
-      )}
-
-      {currentUserId && otherUserId && (
-        <>
-          <VideoCall
-            isOpen={isVideoCallOpen}
-            onClose={() => {
-              setIsVideoCallOpen(false);
-              setIsCallInitiator(false);
-            }}
-            chatId={chatId}
-            currentUserId={currentUserId}
-            otherUserId={otherUserId}
-            isInitiator={isCallInitiator}
-          />
-          
-          <AudioCall
-            isOpen={isAudioCallOpen}
-            onClose={() => {
-              setIsAudioCallOpen(false);
-              setIsCallInitiator(false);
-            }}
-            chatId={chatId}
-            currentUserId={currentUserId}
-            otherUserId={otherUserId}
-            otherUserName={chatName || "Неизвестный"}
-            isInitiator={isCallInitiator}
-          />
-        </>
-      )}
+      <AlertDialog open={!!deletingMessageId} onOpenChange={(open) => !open && setDeletingMessageId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить сообщение?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие нельзя отменить. Сообщение будет помечено как удаленное.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteMessage}>Удалить</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

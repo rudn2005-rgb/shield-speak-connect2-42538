@@ -249,19 +249,43 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
   };
 
   const cleanup = () => {
+    console.log("Cleaning up video call resources");
+    
+    // Stop all local tracks
     if (localStream) {
-      localStream.getTracks().forEach((track) => track.stop());
+      localStream.getTracks().forEach(track => {
+        track.stop();
+        console.log("Stopped local track:", track.kind);
+      });
     }
+    
+    // Stop all remote tracks
+    if (remoteStream) {
+      remoteStream.getTracks().forEach(track => {
+        track.stop();
+        console.log("Stopped remote track:", track.kind);
+      });
+    }
+    
+    // Close peer connection
     if (peerConnection) {
       peerConnection.close();
+      console.log("Closed peer connection");
     }
+    
+    // Remove Supabase channel
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
+      console.log("Removed Supabase channel");
     }
+    
+    // Clear timer
     if (callTimerRef.current) {
       clearInterval(callTimerRef.current);
+      callTimerRef.current = null;
     }
+    
     setLocalStream(null);
     setRemoteStream(null);
     setPeerConnection(null);

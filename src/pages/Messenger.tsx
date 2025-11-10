@@ -12,6 +12,9 @@ import { useUserPresence } from "@/hooks/useUserPresence";
 import { LogOut, Plus, Shield, MessageCircle, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { getUserFriendlyError } from "@/lib/errorHandler";
+import IncomingCallNotification from "@/components/IncomingCallNotification";
+import VideoCall from "@/components/VideoCall";
+import AudioCall from "@/components/AudioCall";
 
 const Messenger = () => {
   const navigate = useNavigate();
@@ -21,6 +24,21 @@ const Messenger = () => {
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  
+  // Global incoming call state
+  const [incomingCall, setIncomingCall] = useState<{
+    chatId: string;
+    callerName: string;
+    callerId: string;
+    callType: "audio" | "video";
+  } | null>(null);
+  const [activeCall, setActiveCall] = useState<{
+    chatId: string;
+    otherUserId: string;
+    otherUserName: string;
+    callType: "audio" | "video";
+    isInitiator: boolean;
+  } | null>(null);
 
   // Отслеживаем статус пользователя
   useUserPresence(currentUserId || null);
@@ -96,7 +114,7 @@ const Messenger = () => {
 
     loadPendingRequests();
 
-    const channel = supabase
+    const requestsChannel = supabase
       .channel("requests_count")
       .on(
         "postgres_changes",
@@ -110,10 +128,79 @@ const Messenger = () => {
       )
       .subscribe();
 
+    // Global call notifications listener
+    const callChannel = supabase
+      .channel(`global-call-notifications-${currentUserId}`)
+      .on(
+        "broadcast",
+        { event: "incoming-call" },
+        async (payload: any) => {
+          console.log("Global incoming call:", payload);
+          
+          // Get caller profile
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("display_name, username")
+            .eq("id", payload.payload.callerId)
+            .single();
+
+          const callerName = profile?.display_name || profile?.username || "Unknown";
+          
+          setIncomingCall({
+            chatId: payload.payload.chatId,
+            callerName,
+            callerId: payload.payload.callerId,
+            callType: payload.payload.callType,
+          });
+        }
+      )
+      .on(
+        "broadcast",
+        { event: "call-declined" },
+        () => {
+          setIncomingCall(null);
+          toast.info("Звонок отклонен");
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(requestsChannel);
+      supabase.removeChannel(callChannel);
     };
   }, [currentUserId]);
+
+  const handleAcceptCall = () => {
+    if (!incomingCall) return;
+    
+    setActiveCall({
+      chatId: incomingCall.chatId,
+      otherUserId: incomingCall.callerId,
+      otherUserName: incomingCall.callerName,
+      callType: incomingCall.callType,
+      isInitiator: false,
+    });
+    setIncomingCall(null);
+  };
+
+  const handleDeclineCall = async () => {
+    if (!incomingCall) return;
+    
+    const channel = supabase.channel(`call-notifications-${incomingCall.callerId}`);
+    await channel.subscribe();
+    await channel.send({
+      type: "broadcast",
+      event: "call-declined",
+      payload: { chatId: incomingCall.chatId },
+    });
+    await supabase.removeChannel(channel);
+    
+    setIncomingCall(null);
+  };
+
+  const handleCloseCall = () => {
+    setActiveCall(null);
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -280,6 +367,39 @@ const Messenger = () => {
           </div>
         )}
       </div>
+
+      {/* Global incoming call notification */}
+      {incomingCall && (
+        <IncomingCallNotification
+          callerName={incomingCall.callerName}
+          onAccept={handleAcceptCall}
+          onDecline={handleDeclineCall}
+        />
+      )}
+
+      {/* Global active call dialogs */}
+      {activeCall && activeCall.callType === "video" && (
+        <VideoCall
+          isOpen={true}
+          onClose={handleCloseCall}
+          chatId={activeCall.chatId}
+          currentUserId={currentUserId}
+          otherUserId={activeCall.otherUserId}
+          isInitiator={activeCall.isInitiator}
+        />
+      )}
+      
+      {activeCall && activeCall.callType === "audio" && (
+        <AudioCall
+          isOpen={true}
+          onClose={handleCloseCall}
+          chatId={activeCall.chatId}
+          currentUserId={currentUserId}
+          otherUserId={activeCall.otherUserId}
+          otherUserName={activeCall.otherUserName}
+          isInitiator={activeCall.isInitiator}
+        />
+      )}
     </div>
   );
 };

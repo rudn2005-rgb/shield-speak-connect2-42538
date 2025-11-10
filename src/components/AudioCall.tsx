@@ -240,19 +240,35 @@ const AudioCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, otherU
   };
 
   const cleanup = () => {
+    console.log("Cleaning up audio call resources");
+    
+    // Stop all local audio tracks
     if (localStream) {
-      localStream.getTracks().forEach((track) => track.stop());
+      localStream.getTracks().forEach(track => {
+        track.stop();
+        console.log("Stopped local audio track");
+      });
     }
+    
+    // Close peer connection
     if (peerConnection) {
       peerConnection.close();
+      console.log("Closed peer connection");
     }
+    
+    // Remove Supabase channel
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
+      console.log("Removed Supabase channel");
     }
+    
+    // Clear timer
     if (callTimerRef.current) {
       clearInterval(callTimerRef.current);
+      callTimerRef.current = null;
     }
+    
     setLocalStream(null);
     setPeerConnection(null);
     setCallStatus("ended");
