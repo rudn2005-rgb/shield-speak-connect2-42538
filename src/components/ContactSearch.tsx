@@ -15,7 +15,7 @@ interface Profile {
   id: string;
   username: string | null;
   avatar_url: string | null;
-  display_name: string | null;
+  full_name: string | null;
 }
 
 interface ContactSearchProps {
@@ -82,19 +82,17 @@ const ContactSearch = ({ onSelectContact, currentUserId }: ContactSearchProps) =
         // Validate input
         const validatedQuery = searchSchema.parse(searchQuery.trim());
         
-        // Escape special characters for ILIKE pattern matching
-        const escapedQuery = validatedQuery.replace(/[%_]/g, '\\$&');
-        
-        // Use public search view to prevent PII exposure during search
+        // Call public search function to prevent PII exposure during search
         const { data, error } = await supabase
-          .from("public_profile_search")
-          .select("id, username, avatar_url, display_name")
-          .ilike("username", `%${escapedQuery}%`)
-          .neq("id", currentUserId)
-          .limit(10);
+          .rpc("public_profile_search", {
+            search_query: validatedQuery,
+          });
 
         if (error) throw error;
-        setResults(data || []);
+        
+        // Filter out current user from results
+        const filteredData = (data || []).filter((profile) => profile.id !== currentUserId);
+        setResults(filteredData.slice(0, 10));
       } catch (error) {
         if (error instanceof z.ZodError) {
           console.error("Invalid search input:", error.errors[0].message);
@@ -148,7 +146,7 @@ const ContactSearch = ({ onSelectContact, currentUserId }: ContactSearchProps) =
                     </Avatar>
                     <div className="flex-1 text-left">
                       <p className="font-medium">
-                        {profile.display_name || profile.username || "Без имени"}
+                        {profile.full_name || profile.username || "Без имени"}
                       </p>
                       {alreadyRequested && (
                         <p className="text-xs text-muted-foreground mt-1">

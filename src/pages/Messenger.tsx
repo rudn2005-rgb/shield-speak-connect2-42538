@@ -140,11 +140,11 @@ const Messenger = () => {
           // Get caller profile
           const { data: profile } = await supabase
             .from("profiles")
-            .select("display_name, username")
+            .select("full_name, username")
             .eq("id", payload.payload.callerId)
             .single();
 
-          const callerName = profile?.display_name || profile?.username || "Unknown";
+          const callerName = profile?.full_name || profile?.username || "Unknown";
           
           setIncomingCall({
             chatId: payload.payload.chatId,

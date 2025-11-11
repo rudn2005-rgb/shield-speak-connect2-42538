@@ -12,7 +12,7 @@ interface Profile {
   id: string;
   username: string | null;
   avatar_url: string | null;
-  display_name: string | null;
+  full_name: string | null;
 }
 
 interface ChatRequest {
@@ -50,7 +50,7 @@ const ChatRequests = ({ currentUserId, onRequestAccepted }: ChatRequestsProps) =
           incomingData.map(async (request) => {
             const { data: sender } = await supabase
               .from("profiles")
-              .select("id, username, avatar_url, display_name")
+              .select("id, username, avatar_url, full_name")
               .eq("id", request.sender_id)
               .single();
             return { ...request, sender };
@@ -72,7 +72,7 @@ const ChatRequests = ({ currentUserId, onRequestAccepted }: ChatRequestsProps) =
           outgoingData.map(async (request) => {
             const { data: receiver } = await supabase
               .from("profiles")
-              .select("id, username, avatar_url, display_name")
+              .select("id, username, avatar_url, full_name")
               .eq("id", request.receiver_id)
               .single();
             return { ...request, receiver };
@@ -124,8 +124,7 @@ const ChatRequests = ({ currentUserId, onRequestAccepted }: ChatRequestsProps) =
       // Use secure database function to create chat with both members
       const { data: newChatId, error: chatError } = await supabase
         .rpc("create_chat_with_members", {
-          other_user_id: senderId,
-          is_group_chat: false,
+          member_ids: [currentUserId, senderId],
         });
 
       if (chatError) throw chatError;
@@ -214,7 +213,7 @@ const ChatRequests = ({ currentUserId, onRequestAccepted }: ChatRequestsProps) =
                   </Avatar>
                   <div className="flex-1">
                     <p className="font-medium">
-                      {request.sender?.display_name || request.sender?.username || "Без имени"}
+                      {request.sender?.full_name || request.sender?.username || "Без имени"}
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -264,7 +263,7 @@ const ChatRequests = ({ currentUserId, onRequestAccepted }: ChatRequestsProps) =
                   </Avatar>
                   <div className="flex-1">
                     <p className="font-medium">
-                      {request.receiver?.display_name || request.receiver?.username || "Без имени"}
+                      {request.receiver?.full_name || request.receiver?.username || "Без имени"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Ожидает подтверждения...

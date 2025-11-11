@@ -11,7 +11,7 @@ import { toast } from "sonner";
 interface Profile {
   id: string;
   username: string;
-  display_name: string | null;
+  full_name: string | null;
   avatar_url: string | null;
 }
 
@@ -47,7 +47,7 @@ const InviteToGroupCallDialog = ({
     if (searchQuery.trim()) {
       const filtered = contacts.filter(
         (contact) =>
-          contact.display_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          contact.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           contact.username?.toLowerCase().includes(searchQuery.toLowerCase())
       );
       setFilteredContacts(filtered);
@@ -68,7 +68,7 @@ const InviteToGroupCallDialog = ({
           profiles:user_id (
             id,
             username,
-            display_name,
+            full_name,
             avatar_url
           )
         `)
@@ -146,14 +146,14 @@ const InviteToGroupCallDialog = ({
                       <Avatar className="h-10 w-10">
                         <AvatarImage src={contact.avatar_url || undefined} />
                         <AvatarFallback>
-                          {(contact.display_name || contact.username || "?")[0].toUpperCase()}
+                          {(contact.full_name || contact.username || "?")[0].toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <p className="font-medium">
-                          {contact.display_name || contact.username}
+                          {contact.full_name || contact.username}
                         </p>
-                        {contact.display_name && (
+                        {contact.full_name && (
                           <p className="text-sm text-muted-foreground">
                             @{contact.username}
                           </p>
