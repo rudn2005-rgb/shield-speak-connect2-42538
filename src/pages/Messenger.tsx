@@ -356,7 +356,15 @@ const Messenger = () => {
 
       <div className="flex-1 flex flex-col">
         {selectedChatId ? (
-          <ChatWindow chatId={selectedChatId} />
+          <ChatWindow 
+            chatId={selectedChatId} 
+            onStartCall={(params) => {
+              setActiveCall({
+                ...params,
+                isInitiator: true,
+              });
+            }}
+          />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <MessageCircle className="w-24 h-24 text-muted-foreground mb-6" />

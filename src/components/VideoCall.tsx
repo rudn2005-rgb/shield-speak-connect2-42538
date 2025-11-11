@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Phone, PhoneOff, Mic, MicOff, Video as VideoIcon, VideoOff } from "lucide-react";
+import { Phone, PhoneOff, Mic, MicOff, Video as VideoIcon, VideoOff, Minimize2, Maximize2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface VideoCallProps {
@@ -22,6 +22,7 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callStatus, setCallStatus] = useState<"connecting" | "connected" | "ended">("connecting");
   const [callDuration, setCallDuration] = useState(0);
+  const [isMinimized, setIsMinimized] = useState(false);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -329,16 +330,92 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
     setCallDuration(0);
   };
 
+  if (isMinimized) {
+    return (
+      <div className="fixed bottom-4 right-4 z-50">
+        <div className="bg-card border border-border rounded-lg shadow-lg p-3 w-64">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-sm font-medium">Видеозвонок</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsMinimized(false)}
+              className="h-6 w-6"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </Button>
+          </div>
+          
+          <div className="relative aspect-video bg-secondary rounded overflow-hidden mb-2">
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover"
+            />
+          </div>
+          
+          <div className="text-xs text-muted-foreground text-center mb-2">
+            {callStatus === "connected" && formatCallDuration(callDuration)}
+          </div>
+          
+          <div className="flex justify-center gap-2">
+            <Button
+              variant={isMuted ? "destructive" : "secondary"}
+              size="icon"
+              onClick={toggleMute}
+              className="rounded-full w-8 h-8"
+            >
+              {isMuted ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+            </Button>
+
+            <Button
+              variant={isVideoOff ? "destructive" : "secondary"}
+              size="icon"
+              onClick={toggleVideo}
+              className="rounded-full w-8 h-8"
+            >
+              {isVideoOff ? <VideoOff className="w-3 h-3" /> : <VideoIcon className="w-3 h-3" />}
+            </Button>
+
+            <Button
+              variant="destructive"
+              size="icon"
+              onClick={handleEndCall}
+              className="rounded-full w-8 h-8"
+            >
+              <PhoneOff className="w-3 h-3" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleEndCall()}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Видеозвонок</span>
-            <span className="text-sm font-normal text-muted-foreground">
-              {callStatus === "connecting" && "Соединение..."}
-              {callStatus === "connected" && formatCallDuration(callDuration)}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-normal text-muted-foreground">
+                {callStatus === "connecting" && "Соединение..."}
+                {callStatus === "connected" && formatCallDuration(callDuration)}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsMinimized(true)}
+                className="h-8 w-8"
+              >
+                <Minimize2 className="w-4 h-4" />
+              </Button>
+            </div>
           </DialogTitle>
         </DialogHeader>
 

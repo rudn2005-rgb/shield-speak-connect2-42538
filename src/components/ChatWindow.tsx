@@ -70,9 +70,10 @@ interface Message {
 
 interface ChatWindowProps {
   chatId: string;
+  onStartCall?: (params: { chatId: string; otherUserId: string; otherUserName: string; callType: "audio" | "video" }) => void;
 }
 
-const ChatWindow = ({ chatId }: ChatWindowProps) => {
+const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -381,12 +382,22 @@ const ChatWindow = ({ chatId }: ChatWindowProps) => {
   };
 
   const handleStartCall = async (callType: "audio" | "video") => {
-    if (!otherUserId || !currentUserId) {
+    if (!otherUserId || !currentUserId || !chatName) {
       toast.error("Не удалось определить собеседника");
       return;
     }
     
-    // Send global notification
+    // Открываем диалог звонка для инициатора
+    if (onStartCall) {
+      onStartCall({
+        chatId: chatId,
+        otherUserId: otherUserId,
+        otherUserName: chatName,
+        callType: callType,
+      });
+    }
+    
+    // Send global notification to other user
     const channel = supabase.channel(`global-call-notifications-${otherUserId}`);
     await channel.subscribe();
     await channel.send({

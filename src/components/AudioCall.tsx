@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Phone, PhoneOff, Mic, MicOff } from "lucide-react";
+import { Phone, PhoneOff, Mic, MicOff, Minimize2, Maximize2 } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
@@ -22,6 +22,7 @@ const AudioCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, otherU
   const [isMuted, setIsMuted] = useState(false);
   const [callStatus, setCallStatus] = useState<"connecting" | "connected" | "ended">("connecting");
   const [callDuration, setCallDuration] = useState(0);
+  const [isMinimized, setIsMinimized] = useState(false);
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const channelRef = useRef<any>(null);
@@ -296,12 +297,79 @@ const AudioCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, otherU
     setCallDuration(0);
   };
 
+  if (isMinimized) {
+    return (
+      <div className="fixed bottom-4 right-4 z-50">
+        <div className="bg-card border border-border rounded-lg shadow-lg p-3 w-64">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-sm font-medium">Голосовой звонок</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsMinimized(false)}
+              className="h-6 w-6"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </Button>
+          </div>
+          
+          <div className="flex items-center gap-3 mb-3">
+            <Avatar className="w-10 h-10">
+              <AvatarFallback className="bg-primary/10 text-primary">
+                {otherUserName.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{otherUserName}</p>
+              <p className="text-xs text-muted-foreground">
+                {callStatus === "connected" && formatCallDuration(callDuration)}
+                {callStatus === "connecting" && "Соединение..."}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex justify-center gap-2">
+            <Button
+              variant={isMuted ? "destructive" : "secondary"}
+              size="icon"
+              onClick={toggleMute}
+              className="rounded-full w-8 h-8"
+            >
+              {isMuted ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+            </Button>
+
+            <Button
+              variant="destructive"
+              size="icon"
+              onClick={handleEndCall}
+              className="rounded-full w-8 h-8"
+            >
+              <PhoneOff className="w-3 h-3" />
+            </Button>
+          </div>
+        </div>
+        <audio ref={audioRef} autoPlay />
+      </div>
+    );
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleEndCall()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            Голосовой звонок
+          <DialogTitle className="flex items-center justify-between">
+            <span>Голосовой звонок</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsMinimized(true)}
+              className="h-8 w-8"
+            >
+              <Minimize2 className="w-4 h-4" />
+            </Button>
           </DialogTitle>
         </DialogHeader>
 
