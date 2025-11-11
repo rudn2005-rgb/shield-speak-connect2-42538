@@ -74,15 +74,26 @@ const AudioCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, otherU
     try {
       console.log("Initializing audio call, requesting microphone access...");
       
-      // Получаем доступ только к микрофону
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Оптимизированные настройки для всех устройств
+      const constraints = {
         video: false,
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
+          sampleRate: 48000,
+          channelCount: 1,
         },
-      });
+      };
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        // Fallback с базовыми настройками для старых устройств
+        console.warn("Failed with advanced constraints, trying basic audio");
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       
       console.log("Microphone access granted, got stream:", stream.id);
       setLocalStream(stream);

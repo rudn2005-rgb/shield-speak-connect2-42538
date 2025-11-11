@@ -85,10 +85,34 @@ const GroupVideoCall = ({
     try {
       console.log("Initializing group video call...");
       
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
+      // Оптимизация для групповых звонков (меньше качество = лучше производительность)
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      
+      const constraints = {
+        video: {
+          width: { ideal: isMobile ? 320 : 640 },
+          height: { ideal: isMobile ? 240 : 480 },
+          facingMode: "user",
+          frameRate: { ideal: isMobile ? 15 : 24 },
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000,
+        },
+      };
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        console.warn("Failed with ideal constraints, using basic media");
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: true 
+        });
+      }
       
       console.log("Media access granted, got stream:", stream.id);
       setLocalStream(stream);

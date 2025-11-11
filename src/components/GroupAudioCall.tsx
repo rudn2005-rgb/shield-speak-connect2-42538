@@ -84,14 +84,24 @@ const GroupAudioCall = ({
     try {
       console.log("Initializing group audio call...");
       
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const constraints = {
         video: false,
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
+          sampleRate: 48000,
+          channelCount: 1,
         },
-      });
+      };
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        console.warn("Failed with advanced constraints, using basic audio");
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       
       console.log("Microphone access granted, got stream:", stream.id);
       setLocalStream(stream);

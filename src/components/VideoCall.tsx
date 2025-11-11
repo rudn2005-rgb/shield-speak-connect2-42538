@@ -74,11 +74,36 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
   const initializeCall = async () => {
     try {
       console.log("Initializing call, requesting media access...");
-      // Получаем доступ к камере и микрофону
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
+      
+      // Адаптивные настройки для разных устройств
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      
+      const constraints = {
+        video: {
+          width: { ideal: isMobile ? 640 : 1280 },
+          height: { ideal: isMobile ? 480 : 720 },
+          facingMode: "user",
+          frameRate: { ideal: isMobile ? 24 : 30 },
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000,
+        },
+      };
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        // Fallback для устройств с ограниченными возможностями
+        console.warn("Failed with ideal constraints, trying basic media");
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: true 
+        });
+      }
       
       console.log("Media access granted, got stream:", stream.id);
       setLocalStream(stream);
