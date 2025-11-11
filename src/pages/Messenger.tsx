@@ -9,7 +9,7 @@ import ChatWindow from "@/components/ChatWindow";
 import ContactSearch from "@/components/ContactSearch";
 import ChatRequests from "@/components/ChatRequests";
 import { useUserPresence } from "@/hooks/useUserPresence";
-import { LogOut, Plus, Shield, MessageCircle, Bell } from "lucide-react";
+import { LogOut, Plus, Shield, MessageCircle, Bell, User } from "lucide-react";
 import { toast } from "sonner";
 import { getUserFriendlyError } from "@/lib/errorHandler";
 import IncomingCallNotification from "@/components/IncomingCallNotification";
@@ -292,9 +292,14 @@ const Messenger = () => {
             <Shield className="w-6 h-6 text-primary" />
             <h1 className="text-xl font-bold">SecureChat</h1>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleLogout}>
-            <LogOut className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/profile")}>
+              <User className="w-5 h-5" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleLogout}>
+              <LogOut className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
 
         <div className="p-4 space-y-2">

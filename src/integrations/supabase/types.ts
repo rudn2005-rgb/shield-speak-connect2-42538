@@ -150,6 +150,7 @@ export type Database = {
           created_at: string | null
           full_name: string | null
           id: string
+          is_public: boolean
           last_seen: string | null
           phone_number: string | null
           status: string | null
@@ -160,6 +161,7 @@ export type Database = {
           created_at?: string | null
           full_name?: string | null
           id: string
+          is_public?: boolean
           last_seen?: string | null
           phone_number?: string | null
           status?: string | null
@@ -170,6 +172,7 @@ export type Database = {
           created_at?: string | null
           full_name?: string | null
           id?: string
+          is_public?: boolean
           last_seen?: string | null
           phone_number?: string | null
           status?: string | null
