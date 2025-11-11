@@ -55,7 +55,9 @@ const GroupVideoCall = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    console.log("GroupVideoCall opened");
+    if (import.meta.env.DEV) {
+      console.log("GroupVideoCall opened");
+    }
     initializeCall();
 
     return () => {
@@ -83,7 +85,9 @@ const GroupVideoCall = ({
 
   const initializeCall = async () => {
     try {
-      console.log("Initializing group video call...");
+      if (import.meta.env.DEV) {
+        console.log("Initializing group video call...");
+      }
       
       // Оптимизация для групповых звонков (меньше качество = лучше производительность)
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -107,14 +111,18 @@ const GroupVideoCall = ({
       try {
         stream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (err) {
-        console.warn("Failed with ideal constraints, using basic media");
+        if (import.meta.env.DEV) {
+          console.warn("Failed with ideal constraints, using basic media");
+        }
         stream = await navigator.mediaDevices.getUserMedia({ 
           video: true, 
           audio: true 
         });
       }
       
-      console.log("Media access granted, got stream:", stream.id);
+      if (import.meta.env.DEV) {
+        console.log("Media access granted, got stream:", stream.id);
+      }
       setLocalStream(stream);
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
@@ -144,7 +152,9 @@ const GroupVideoCall = ({
   };
 
   const createPeerConnection = async (targetUserId: string, isInitiator: boolean, stream: MediaStream) => {
-    console.log(`Creating peer connection to ${targetUserId}, isInitiator: ${isInitiator}`);
+    if (import.meta.env.DEV) {
+      console.log(`Creating peer connection to ${targetUserId}, isInitiator: ${isInitiator}`);
+    }
     
     const pc = new RTCPeerConnection(configuration);
 
@@ -155,7 +165,9 @@ const GroupVideoCall = ({
 
     // Обрабатываем входящие треки
     pc.ontrack = (event) => {
-      console.log(`Received remote track from ${targetUserId}`);
+      if (import.meta.env.DEV) {
+        console.log(`Received remote track from ${targetUserId}`);
+      }
       const [remoteStream] = event.streams;
       
       setParticipants(prev => 
@@ -170,7 +182,9 @@ const GroupVideoCall = ({
     // Обрабатываем ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log(`Sending ICE candidate to ${targetUserId}`);
+        if (import.meta.env.DEV) {
+          console.log(`Sending ICE candidate to ${targetUserId}`);
+        }
         sendSignalingMessage({
           type: "ice-candidate",
           candidate: event.candidate,
@@ -179,7 +193,9 @@ const GroupVideoCall = ({
     };
 
     pc.oniceconnectionstatechange = () => {
-      console.log(`ICE connection state with ${targetUserId}:`, pc.iceConnectionState);
+      if (import.meta.env.DEV) {
+        console.log(`ICE connection state with ${targetUserId}:`, pc.iceConnectionState);
+      }
       if (pc.iceConnectionState === "failed" || pc.iceConnectionState === "disconnected") {
         toast.error(`Потеряно соединение с участником`);
       }
@@ -201,7 +217,9 @@ const GroupVideoCall = ({
         offerToReceiveVideo: true,
       });
       await pc.setLocalDescription(offer);
-      console.log(`Sending offer to ${targetUserId}`);
+      if (import.meta.env.DEV) {
+        console.log(`Sending offer to ${targetUserId}`);
+      }
       await sendSignalingMessage({
         type: "offer",
         offer: offer,
@@ -214,7 +232,9 @@ const GroupVideoCall = ({
   const sendSignalingMessage = async (message: any, targetUserId: string | null) => {
     try {
       if (!channelRef.current) {
-        console.error("Channel not initialized");
+        if (import.meta.env.DEV) {
+          console.error("Channel not initialized");
+        }
         return;
       }
       
@@ -245,13 +265,17 @@ const GroupVideoCall = ({
           if (payload.to && payload.to !== currentUserId) return;
           
           const { message, from } = payload;
-          console.log("Received signaling message:", message.type, "from:", from);
+          if (import.meta.env.DEV) {
+            console.log("Received signaling message:", message.type, "from:", from);
+          }
 
           try {
             if (message.type === "user-joined") {
               // Новый участник присоединился
               if (from !== currentUserId && !participants.find(p => p.userId === from)) {
-                console.log("New user joined:", from);
+                if (import.meta.env.DEV) {
+                  console.log("New user joined:", from);
+                }
                 setParticipants(prev => [...prev, { userId: from, userName: "Участник" }]);
                 
                 // Создаем connection к новому участнику (мы инициатор)
@@ -260,7 +284,9 @@ const GroupVideoCall = ({
                 }
               }
             } else if (message.type === "offer") {
-              console.log("Processing offer from", from);
+              if (import.meta.env.DEV) {
+                console.log("Processing offer from", from);
+              }
               const participant = participants.find(p => p.userId === from);
               let pc = participant?.peerConnection;
               
@@ -278,7 +304,9 @@ const GroupVideoCall = ({
                 }, from);
               }
             } else if (message.type === "answer") {
-              console.log("Processing answer from", from);
+              if (import.meta.env.DEV) {
+                console.log("Processing answer from", from);
+              }
               const participant = participants.find(p => p.userId === from);
               const pc = participant?.peerConnection;
               
@@ -286,7 +314,9 @@ const GroupVideoCall = ({
                 await pc.setRemoteDescription(new RTCSessionDescription(message.answer));
               }
             } else if (message.type === "ice-candidate") {
-              console.log("Adding ICE candidate from", from);
+              if (import.meta.env.DEV) {
+                console.log("Adding ICE candidate from", from);
+              }
               const participant = participants.find(p => p.userId === from);
               const pc = participant?.peerConnection;
               
@@ -294,7 +324,9 @@ const GroupVideoCall = ({
                 await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
               }
             } else if (message.type === "user-left") {
-              console.log("User left:", from);
+              if (import.meta.env.DEV) {
+                console.log("User left:", from);
+              }
               handleParticipantLeft(from);
             }
           } catch (error) {
@@ -302,7 +334,9 @@ const GroupVideoCall = ({
           }
         })
         .subscribe((status) => {
-          console.log("Channel subscription status:", status);
+          if (import.meta.env.DEV) {
+            console.log("Channel subscription status:", status);
+          }
           if (status === "SUBSCRIBED") {
             channelRef.current = channel;
             resolve();
@@ -352,12 +386,16 @@ const GroupVideoCall = ({
   };
 
   const cleanup = () => {
-    console.log("Cleaning up group video call resources");
+    if (import.meta.env.DEV) {
+      console.log("Cleaning up group video call resources");
+    }
     
     if (localStream) {
       localStream.getTracks().forEach(track => {
         track.stop();
-        console.log("Stopped local track:", track.kind);
+        if (import.meta.env.DEV) {
+          console.log("Stopped local track:", track.kind);
+        }
       });
     }
     

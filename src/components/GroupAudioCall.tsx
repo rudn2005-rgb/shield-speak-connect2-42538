@@ -54,7 +54,9 @@ const GroupAudioCall = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    console.log("GroupAudioCall opened");
+    if (import.meta.env.DEV) {
+      console.log("GroupAudioCall opened");
+    }
     initializeCall();
 
     return () => {
@@ -82,7 +84,9 @@ const GroupAudioCall = ({
 
   const initializeCall = async () => {
     try {
-      console.log("Initializing group audio call...");
+      if (import.meta.env.DEV) {
+        console.log("Initializing group audio call...");
+      }
       
       const constraints = {
         video: false,
@@ -99,11 +103,15 @@ const GroupAudioCall = ({
       try {
         stream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (err) {
-        console.warn("Failed with advanced constraints, using basic audio");
+        if (import.meta.env.DEV) {
+          console.warn("Failed with advanced constraints, using basic audio");
+        }
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
       
-      console.log("Microphone access granted, got stream:", stream.id);
+      if (import.meta.env.DEV) {
+        console.log("Microphone access granted, got stream:", stream.id);
+      }
       setLocalStream(stream);
 
       await subscribeToRoom();
@@ -127,7 +135,9 @@ const GroupAudioCall = ({
   };
 
   const createPeerConnection = async (targetUserId: string, isInitiator: boolean, stream: MediaStream) => {
-    console.log(`Creating peer connection to ${targetUserId}, isInitiator: ${isInitiator}`);
+    if (import.meta.env.DEV) {
+      console.log(`Creating peer connection to ${targetUserId}, isInitiator: ${isInitiator}`);
+    }
     
     const pc = new RTCPeerConnection(configuration);
 
@@ -136,7 +146,9 @@ const GroupAudioCall = ({
     });
 
     pc.ontrack = (event) => {
-      console.log(`Received remote audio track from ${targetUserId}`);
+      if (import.meta.env.DEV) {
+        console.log(`Received remote audio track from ${targetUserId}`);
+      }
       const [remoteStream] = event.streams;
       
       const audioElement = new Audio();
@@ -155,7 +167,9 @@ const GroupAudioCall = ({
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log(`Sending ICE candidate to ${targetUserId}`);
+        if (import.meta.env.DEV) {
+          console.log(`Sending ICE candidate to ${targetUserId}`);
+        }
         sendSignalingMessage({
           type: "ice-candidate",
           candidate: event.candidate,
@@ -164,7 +178,9 @@ const GroupAudioCall = ({
     };
 
     pc.oniceconnectionstatechange = () => {
-      console.log(`ICE connection state with ${targetUserId}:`, pc.iceConnectionState);
+      if (import.meta.env.DEV) {
+        console.log(`ICE connection state with ${targetUserId}:`, pc.iceConnectionState);
+      }
       if (pc.iceConnectionState === "failed" || pc.iceConnectionState === "disconnected") {
         toast.error(`Потеряно соединение с участником`);
       }
@@ -183,7 +199,9 @@ const GroupAudioCall = ({
         offerToReceiveAudio: true,
       });
       await pc.setLocalDescription(offer);
-      console.log(`Sending offer to ${targetUserId}`);
+      if (import.meta.env.DEV) {
+        console.log(`Sending offer to ${targetUserId}`);
+      }
       await sendSignalingMessage({
         type: "offer",
         offer: offer,
@@ -196,7 +214,9 @@ const GroupAudioCall = ({
   const sendSignalingMessage = async (message: any, targetUserId: string | null) => {
     try {
       if (!channelRef.current) {
-        console.error("Channel not initialized");
+        if (import.meta.env.DEV) {
+          console.error("Channel not initialized");
+        }
         return;
       }
       
@@ -226,12 +246,16 @@ const GroupAudioCall = ({
           if (payload.to && payload.to !== currentUserId) return;
           
           const { message, from } = payload;
-          console.log("Received signaling message:", message.type, "from:", from);
+          if (import.meta.env.DEV) {
+            console.log("Received signaling message:", message.type, "from:", from);
+          }
 
           try {
             if (message.type === "user-joined") {
               if (from !== currentUserId && !participants.find(p => p.userId === from)) {
-                console.log("New user joined:", from);
+                if (import.meta.env.DEV) {
+                  console.log("New user joined:", from);
+                }
                 setParticipants(prev => [...prev, { userId: from, userName: "Участник" }]);
                 
                 if (localStream) {
@@ -239,7 +263,9 @@ const GroupAudioCall = ({
                 }
               }
             } else if (message.type === "offer") {
-              console.log("Processing offer from", from);
+              if (import.meta.env.DEV) {
+                console.log("Processing offer from", from);
+              }
               const participant = participants.find(p => p.userId === from);
               let pc = participant?.peerConnection;
               
@@ -257,7 +283,9 @@ const GroupAudioCall = ({
                 }, from);
               }
             } else if (message.type === "answer") {
-              console.log("Processing answer from", from);
+              if (import.meta.env.DEV) {
+                console.log("Processing answer from", from);
+              }
               const participant = participants.find(p => p.userId === from);
               const pc = participant?.peerConnection;
               
@@ -265,7 +293,9 @@ const GroupAudioCall = ({
                 await pc.setRemoteDescription(new RTCSessionDescription(message.answer));
               }
             } else if (message.type === "ice-candidate") {
-              console.log("Adding ICE candidate from", from);
+              if (import.meta.env.DEV) {
+                console.log("Adding ICE candidate from", from);
+              }
               const participant = participants.find(p => p.userId === from);
               const pc = participant?.peerConnection;
               
@@ -273,7 +303,9 @@ const GroupAudioCall = ({
                 await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
               }
             } else if (message.type === "user-left") {
-              console.log("User left:", from);
+              if (import.meta.env.DEV) {
+                console.log("User left:", from);
+              }
               handleParticipantLeft(from);
             }
           } catch (error) {
@@ -281,7 +313,9 @@ const GroupAudioCall = ({
           }
         })
         .subscribe((status) => {
-          console.log("Channel subscription status:", status);
+          if (import.meta.env.DEV) {
+            console.log("Channel subscription status:", status);
+          }
           if (status === "SUBSCRIBED") {
             channelRef.current = channel;
             resolve();
@@ -330,12 +364,16 @@ const GroupAudioCall = ({
   };
 
   const cleanup = () => {
-    console.log("Cleaning up group audio call resources");
+    if (import.meta.env.DEV) {
+      console.log("Cleaning up group audio call resources");
+    }
     
     if (localStream) {
       localStream.getTracks().forEach(track => {
         track.stop();
-        console.log("Stopped local audio track");
+        if (import.meta.env.DEV) {
+          console.log("Stopped local audio track");
+        }
       });
     }
     

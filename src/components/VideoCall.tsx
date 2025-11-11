@@ -42,7 +42,9 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
   useEffect(() => {
     if (!isOpen) return;
 
-    console.log("VideoCall opened, isInitiator:", isInitiator);
+    if (import.meta.env.DEV) {
+      console.log("VideoCall opened, isInitiator:", isInitiator);
+    }
     initializeCall();
 
     return () => {
@@ -76,7 +78,9 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
 
   const initializeCall = async () => {
     try {
-      console.log("Initializing call, requesting media access...");
+      if (import.meta.env.DEV) {
+        console.log("Initializing call, requesting media access...");
+      }
       
       // Адаптивные настройки для разных устройств
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -101,14 +105,18 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
         stream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (err) {
         // Fallback для устройств с ограниченными возможностями
-        console.warn("Failed with ideal constraints, trying basic media");
+        if (import.meta.env.DEV) {
+          console.warn("Failed with ideal constraints, trying basic media");
+        }
         stream = await navigator.mediaDevices.getUserMedia({ 
           video: true, 
           audio: true 
         });
       }
       
-      console.log("Media access granted, got stream:", stream.id);
+      if (import.meta.env.DEV) {
+        console.log("Media access granted, got stream:", stream.id);
+      }
       setLocalStream(stream);
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
@@ -117,17 +125,23 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
       // Создаем peer connection
       const pc = new RTCPeerConnection(configuration);
       setPeerConnection(pc);
-      console.log("PeerConnection created");
+      if (import.meta.env.DEV) {
+        console.log("PeerConnection created");
+      }
 
       // Добавляем локальные треки
       stream.getTracks().forEach((track) => {
-        console.log("Adding track:", track.kind);
+        if (import.meta.env.DEV) {
+          console.log("Adding track:", track.kind);
+        }
         pc.addTrack(track, stream);
       });
 
       // Обрабатываем входящие треки
       pc.ontrack = (event) => {
-        console.log("Received remote track:", event.track.kind);
+        if (import.meta.env.DEV) {
+          console.log("Received remote track:", event.track.kind);
+        }
         const [remoteStream] = event.streams;
         setRemoteStream(remoteStream);
         if (remoteVideoRef.current) {
@@ -140,7 +154,9 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
       // Обрабатываем ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          console.log("Sending ICE candidate");
+          if (import.meta.env.DEV) {
+            console.log("Sending ICE candidate");
+          }
           sendSignalingMessage({
             type: "ice-candidate",
             candidate: event.candidate,
@@ -150,7 +166,9 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
 
       // Обрабатываем изменение состояния соединения
       pc.oniceconnectionstatechange = () => {
-        console.log("ICE connection state:", pc.iceConnectionState);
+        if (import.meta.env.DEV) {
+          console.log("ICE connection state:", pc.iceConnectionState);
+        }
         if (pc.iceConnectionState === "connected") {
           setCallStatus("connected");
         } else if (pc.iceConnectionState === "failed" || pc.iceConnectionState === "disconnected") {
@@ -164,7 +182,9 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
 
       // Если мы инициатор звонка, создаем offer
       if (isInitiator) {
-        console.log("Creating offer as initiator");
+        if (import.meta.env.DEV) {
+          console.log("Creating offer as initiator");
+        }
         // Даем время на полную подписку канала
         await new Promise(resolve => setTimeout(resolve, 500));
         
@@ -173,7 +193,9 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
           offerToReceiveVideo: true,
         });
         await pc.setLocalDescription(offer);
-        console.log("Sending offer");
+        if (import.meta.env.DEV) {
+          console.log("Sending offer");
+        }
         await sendSignalingMessage({
           type: "offer",
           offer: offer,
@@ -190,11 +212,15 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
   const sendSignalingMessage = async (message: any) => {
     try {
       if (!channelRef.current) {
-        console.error("Channel not initialized");
+        if (import.meta.env.DEV) {
+          console.error("Channel not initialized");
+        }
         return;
       }
       
-      console.log("Sending signaling message:", message.type);
+      if (import.meta.env.DEV) {
+        console.log("Sending signaling message:", message.type);
+      }
       await channelRef.current.send({
         type: "broadcast",
         event: "signaling",
@@ -221,31 +247,43 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
           if (payload.to !== currentUserId) return;
 
           const { message } = payload;
-          console.log("Received signaling message:", message.type);
+          if (import.meta.env.DEV) {
+            console.log("Received signaling message:", message.type);
+          }
 
           try {
             if (message.type === "offer") {
-              console.log("Processing offer");
+              if (import.meta.env.DEV) {
+                console.log("Processing offer");
+              }
               await pc.setRemoteDescription(new RTCSessionDescription(message.offer));
               const answer = await pc.createAnswer();
               await pc.setLocalDescription(answer);
-              console.log("Sending answer");
+              if (import.meta.env.DEV) {
+                console.log("Sending answer");
+              }
               await sendSignalingMessage({
                 type: "answer",
                 answer: answer,
               });
             } else if (message.type === "answer") {
-              console.log("Processing answer");
+              if (import.meta.env.DEV) {
+                console.log("Processing answer");
+              }
               if (pc.signalingState === "have-local-offer") {
                 await pc.setRemoteDescription(new RTCSessionDescription(message.answer));
               }
             } else if (message.type === "ice-candidate") {
-              console.log("Adding ICE candidate");
+              if (import.meta.env.DEV) {
+                console.log("Adding ICE candidate");
+              }
               if (pc.remoteDescription) {
                 await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
               }
             } else if (message.type === "end-call") {
-              console.log("Call ended by remote peer");
+              if (import.meta.env.DEV) {
+                console.log("Call ended by remote peer");
+              }
               handleEndCall();
             }
           } catch (error) {
@@ -253,7 +291,9 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
           }
         })
         .subscribe((status) => {
-          console.log("Channel subscription status:", status);
+          if (import.meta.env.DEV) {
+            console.log("Channel subscription status:", status);
+          }
           if (status === "SUBSCRIBED") {
             channelRef.current = channel;
             resolve();
@@ -316,13 +356,17 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
   };
 
   const cleanup = () => {
-    console.log("Cleaning up video call resources");
+    if (import.meta.env.DEV) {
+      console.log("Cleaning up video call resources");
+    }
     
     // Stop all local tracks
     if (localStream) {
       localStream.getTracks().forEach(track => {
         track.stop();
-        console.log("Stopped local track:", track.kind);
+        if (import.meta.env.DEV) {
+          console.log("Stopped local track:", track.kind);
+        }
       });
     }
     
@@ -330,21 +374,27 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
     if (remoteStream) {
       remoteStream.getTracks().forEach(track => {
         track.stop();
-        console.log("Stopped remote track:", track.kind);
+        if (import.meta.env.DEV) {
+          console.log("Stopped remote track:", track.kind);
+        }
       });
     }
     
     // Close peer connection
     if (peerConnection) {
       peerConnection.close();
-      console.log("Closed peer connection");
+      if (import.meta.env.DEV) {
+        console.log("Closed peer connection");
+      }
     }
     
     // Remove Supabase channel
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
-      console.log("Removed Supabase channel");
+      if (import.meta.env.DEV) {
+        console.log("Removed Supabase channel");
+      }
     }
     
     // Clear timer
