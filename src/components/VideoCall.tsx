@@ -211,25 +211,31 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
 
   const sendSignalingMessage = async (message: any) => {
     try {
-      if (!channelRef.current) {
-        if (import.meta.env.DEV) {
-          console.error("Channel not initialized");
-        }
-        return;
-      }
-      
       if (import.meta.env.DEV) {
         console.log("Sending signaling message:", message.type);
       }
-      await channelRef.current.send({
-        type: "broadcast",
-        event: "signaling",
-        payload: {
-          from: currentUserId,
+
+      // Get auth session for secure relay
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        console.error("No active session for signaling");
+        return;
+      }
+
+      // Send through secure edge function relay
+      const { error } = await supabase.functions.invoke('relay-signaling', {
+        body: {
           to: otherUserId,
           message,
-        },
+          chatId,
+          callType: 'video'
+        }
       });
+
+      if (error) {
+        console.error("Error sending signaling message:", error);
+        toast.error("Ошибка отправки сигнала");
+      }
     } catch (error) {
       console.error("Error sending signaling message:", error);
     }
@@ -244,11 +250,21 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
           },
         })
         .on("broadcast", { event: "signaling" }, async ({ payload }) => {
-          if (payload.to !== currentUserId) return;
+          // Server-verified payload - 'from' field is now trustworthy
+          if (payload.to && payload.to !== currentUserId) return;
 
-          const { message } = payload;
+          const { message, from } = payload;
+          
+          // Verify message is from expected peer
+          if (from !== otherUserId) {
+            if (import.meta.env.DEV) {
+              console.warn("Received message from unexpected peer:", from);
+            }
+            return;
+          }
+
           if (import.meta.env.DEV) {
-            console.log("Received signaling message:", message.type);
+            console.log("Received authenticated signaling message:", message.type);
           }
 
           try {

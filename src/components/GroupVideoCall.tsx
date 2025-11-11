@@ -231,22 +231,29 @@ const GroupVideoCall = ({
 
   const sendSignalingMessage = async (message: any, targetUserId: string | null) => {
     try {
-      if (!channelRef.current) {
+      // Get auth session for secure relay
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
         if (import.meta.env.DEV) {
-          console.error("Channel not initialized");
+          console.error("No active session for signaling");
         }
         return;
       }
-      
-      await channelRef.current.send({
-        type: "broadcast",
-        event: "signaling",
-        payload: {
-          from: currentUserId,
-          to: targetUserId, // null для broadcast всем
+
+      // Send through secure edge function relay
+      const { error } = await supabase.functions.invoke('relay-signaling', {
+        body: {
+          to: targetUserId,
           message,
-        },
+          roomId,
+          callType: 'group-video'
+        }
       });
+
+      if (error) {
+        console.error("Error sending signaling message:", error);
+        toast.error("Ошибка отправки сигнала");
+      }
     } catch (error) {
       console.error("Error sending signaling message:", error);
     }
@@ -261,12 +268,12 @@ const GroupVideoCall = ({
           },
         })
         .on("broadcast", { event: "signaling" }, async ({ payload }) => {
-          // Если сообщение не для нас и не broadcast, игнорируем
+          // Server-verified payload - 'from' field is now trustworthy
           if (payload.to && payload.to !== currentUserId) return;
           
           const { message, from } = payload;
           if (import.meta.env.DEV) {
-            console.log("Received signaling message:", message.type, "from:", from);
+            console.log("Received authenticated signaling message:", message.type, "from:", from);
           }
 
           try {
