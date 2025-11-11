@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Phone, PhoneOff, Mic, MicOff, Video as VideoIcon, VideoOff, Minimize2, Maximize2 } from "lucide-react";
+import { Phone, PhoneOff, Mic, MicOff, Video as VideoIcon, VideoOff, Minimize2, Maximize2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+import InviteToGroupCallDialog from "./InviteToGroupCallDialog";
 
 interface VideoCallProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
   const [callStatus, setCallStatus] = useState<"connecting" | "connected" | "ended">("connecting");
   const [callDuration, setCallDuration] = useState(0);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -163,6 +165,9 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
       // Если мы инициатор звонка, создаем offer
       if (isInitiator) {
         console.log("Creating offer as initiator");
+        // Даем время на полную подписку канала
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         const offer = await pc.createOffer({
           offerToReceiveAudio: true,
           offerToReceiveVideo: true,
@@ -283,6 +288,31 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
     }
     cleanup();
     onClose();
+  };
+
+  const handleInviteToGroup = async (contactId: string) => {
+    try {
+      // Отправляем приглашение в групповой звонок
+      const channel = supabase.channel(`global-call-notifications-${contactId}`);
+      await channel.subscribe();
+      
+      await channel.send({
+        type: "broadcast",
+        event: "incoming-group-call",
+        payload: {
+          chatId: chatId,
+          callerId: currentUserId,
+          callType: "video",
+          isGroupInvite: true,
+        },
+      });
+      
+      await supabase.removeChannel(channel);
+      toast.success("Приглашение отправлено");
+    } catch (error) {
+      console.error("Error inviting to group call:", error);
+      toast.error("Не удалось отправить приглашение");
+    }
   };
 
   const cleanup = () => {
@@ -472,6 +502,16 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
             </Button>
 
             <Button
+              variant="secondary"
+              size="icon"
+              onClick={() => setShowInviteDialog(true)}
+              className="rounded-full w-12 h-12"
+              title="Пригласить в групповой звонок"
+            >
+              <UserPlus className="w-5 h-5" />
+            </Button>
+
+            <Button
               variant="destructive"
               size="icon"
               onClick={handleEndCall}
@@ -482,6 +522,15 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
           </div>
         </div>
       </DialogContent>
+
+      <InviteToGroupCallDialog
+        isOpen={showInviteDialog}
+        onClose={() => setShowInviteDialog(false)}
+        currentUserId={currentUserId}
+        chatId={chatId}
+        callType="video"
+        onInvite={handleInviteToGroup}
+      />
     </Dialog>
   );
 };

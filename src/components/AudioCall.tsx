@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Phone, PhoneOff, Mic, MicOff, Minimize2, Maximize2 } from "lucide-react";
+import { Phone, PhoneOff, Mic, MicOff, Minimize2, Maximize2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import InviteToGroupCallDialog from "./InviteToGroupCallDialog";
 
 interface AudioCallProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ const AudioCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, otherU
   const [callStatus, setCallStatus] = useState<"connecting" | "connected" | "ended">("connecting");
   const [callDuration, setCallDuration] = useState(0);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const channelRef = useRef<any>(null);
@@ -149,6 +151,9 @@ const AudioCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, otherU
       // Если мы инициатор звонка, создаем offer
       if (isInitiator) {
         console.log("Creating offer as initiator");
+        // Даем время на полную подписку канала
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         const offer = await pc.createOffer({
           offerToReceiveAudio: true,
         });
@@ -261,6 +266,31 @@ const AudioCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, otherU
     onClose();
   };
 
+  const handleInviteToGroup = async (contactId: string) => {
+    try {
+      // Отправляем приглашение в групповой звонок
+      const channel = supabase.channel(`global-call-notifications-${contactId}`);
+      await channel.subscribe();
+      
+      await channel.send({
+        type: "broadcast",
+        event: "incoming-group-call",
+        payload: {
+          chatId: chatId,
+          callerId: currentUserId,
+          callType: "audio",
+          isGroupInvite: true,
+        },
+      });
+      
+      await supabase.removeChannel(channel);
+      toast.success("Приглашение отправлено");
+    } catch (error) {
+      console.error("Error inviting to group call:", error);
+      toast.error("Не удалось отправить приглашение");
+    }
+  };
+
   const cleanup = () => {
     console.log("Cleaning up audio call resources");
     
@@ -342,6 +372,16 @@ const AudioCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, otherU
             </Button>
 
             <Button
+              variant="secondary"
+              size="icon"
+              onClick={() => setShowInviteDialog(true)}
+              className="rounded-full w-8 h-8"
+              title="Пригласить в групповой звонок"
+            >
+              <UserPlus className="w-3 h-3" />
+            </Button>
+
+            <Button
               variant="destructive"
               size="icon"
               onClick={handleEndCall}
@@ -404,6 +444,16 @@ const AudioCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, otherU
             </Button>
 
             <Button
+              variant="secondary"
+              size="icon"
+              onClick={() => setShowInviteDialog(true)}
+              className="rounded-full w-16 h-16"
+              title="Пригласить в групповой звонок"
+            >
+              <UserPlus className="w-6 h-6" />
+            </Button>
+
+            <Button
               variant="destructive"
               size="icon"
               onClick={handleEndCall}
@@ -417,6 +467,15 @@ const AudioCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, otherU
         {/* Скрытый audio элемент для воспроизведения удаленного аудио */}
         <audio ref={audioRef} autoPlay />
       </DialogContent>
+
+      <InviteToGroupCallDialog
+        isOpen={showInviteDialog}
+        onClose={() => setShowInviteDialog(false)}
+        currentUserId={currentUserId}
+        chatId={chatId}
+        callType="audio"
+        onInvite={handleInviteToGroup}
+      />
     </Dialog>
   );
 };
