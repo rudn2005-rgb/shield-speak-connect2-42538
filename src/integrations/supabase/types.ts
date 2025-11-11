@@ -177,11 +177,40 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limits: {
+        Row: {
+          action: string
+          count: number | null
+          user_id: string
+          window_start: string | null
+        }
+        Insert: {
+          action: string
+          count?: number | null
+          user_id: string
+          window_start?: string | null
+        }
+        Update: {
+          action?: string
+          count?: number | null
+          user_id?: string
+          window_start?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      check_rate_limit: {
+        Args: {
+          p_action: string
+          p_max_requests: number
+          p_window_minutes: number
+        }
+        Returns: boolean
+      }
       create_chat_with_members: {
         Args: { chat_name?: string; member_ids: string[] }
         Returns: string
