@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, Phone, Video, MoreVertical, Mic, VideoIcon } from "lucide-react";
+import { Send, Phone, Video, MoreVertical, Mic, VideoIcon, Search, Settings2, Reply } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
@@ -17,6 +17,9 @@ import VoiceRecorder from "./VoiceRecorder";
 import VideoRecorder from "./VideoRecorder";
 import ForwardMessageDialog from "./ForwardMessageDialog";
 import MessageStatus from "./MessageStatus";
+import MessageReactions from "./MessageReactions";
+import MessageSearch from "./MessageSearch";
+import GroupManagementDialog from "./GroupManagementDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -68,12 +71,17 @@ interface Message {
   file_type?: string | null;
   forwarded_from_message_id?: string | null;
   forwarded_from_chat_id?: string | null;
+  replied_to_message_id?: string | null;
   sender?: {
     username: string;
     full_name: string | null;
     avatar_url: string | null;
   };
   read_by?: Array<{ user_id: string }>;
+  replied_message?: {
+    content: string;
+    sender: { username: string };
+  };
 }
 
 interface ChatWindowProps {
@@ -96,6 +104,11 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const [forwardingMessageId, setForwardingMessageId] = useState<string | null>(null);
   const [forwardingMessageContent, setForwardingMessageContent] = useState("");
+  const [replyingTo, setReplyingTo] = useState<{ id: string; content: string; username: string } | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showGroupManagement, setShowGroupManagement] = useState(false);
+  const [chatType, setChatType] = useState<string>("private");
+  const [currentUserRole, setCurrentUserRole] = useState<string>("member");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -184,36 +197,52 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
 
       const { data: chat } = await (supabase as any)
         .from("chats")
-        .select("name, is_group")
+        .select("name, is_group, chat_type")
         .eq("id", chatId)
         .single();
 
-      if (chat && !chat.is_group) {
-        const { data: members } = await (supabase as any)
-          .from("chat_members")
-          .select("user_id")
-          .eq("chat_id", chatId)
-          .neq("user_id", user.id)
-          .single();
-
-        if (members) {
-          setOtherUserId(members.user_id);
-          const { data: profile } = await (supabase as any)
-            .from("profiles")
-            .select("username, full_name, status, last_seen")
-            .eq("id", members.user_id)
+      if (chat) {
+        setChatType(chat.chat_type || "private");
+        
+        if (chat.is_group) {
+          setChatName(chat.name || "Группа");
+          
+          // Get current user's role
+          const { data: memberData } = await supabase
+            .from("chat_members")
+            .select("role")
+            .eq("chat_id", chatId)
+            .eq("user_id", user.id)
+            .single();
+          
+          if (memberData) {
+            setCurrentUserRole(memberData.role || "member");
+          }
+        } else {
+          const { data: members } = await (supabase as any)
+            .from("chat_members")
+            .select("user_id")
+            .eq("chat_id", chatId)
+            .neq("user_id", user.id)
             .single();
 
-          if (profile) {
-            setChatName(profile.full_name || profile.username || "Неизвестный");
-            setOtherUserStatus({
-              status: profile.status,
-              lastSeen: profile.last_seen
-            });
+          if (members) {
+            setOtherUserId(members.user_id);
+            const { data: profile } = await (supabase as any)
+              .from("profiles")
+              .select("username, full_name, status, last_seen")
+              .eq("id", members.user_id)
+              .single();
+
+            if (profile) {
+              setChatName(profile.full_name || profile.username || "Неизвестный");
+              setOtherUserStatus({
+                status: profile.status,
+                lastSeen: profile.last_seen
+              });
+            }
           }
         }
-      } else if (chat) {
-        setChatName(chat.name || "Группа");
       }
     } catch (error) {
       console.error("Error loading chat info:", error);
@@ -244,7 +273,23 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
             .select("user_id")
             .eq("message_id", message.id);
 
-          return { ...message, sender: profile, read_by: reads || [] };
+          // Get replied message if exists
+          let replied_message = null;
+          if (message.replied_to_message_id) {
+            const { data: repliedMsg } = await supabase
+              .from("messages")
+              .select("content, sender:sender_id(username)")
+              .eq("id", message.replied_to_message_id)
+              .single();
+            replied_message = repliedMsg;
+          }
+
+          return { 
+            ...message, 
+            sender: profile, 
+            read_by: reads || [],
+            replied_message 
+          };
         })
       );
 
@@ -352,6 +397,7 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
           file_name: fileName,
           file_size: fileSize,
           file_type: fileType,
+          replied_to_message_id: replyingTo?.id || null,
         });
 
         if (error) throw error;
@@ -364,6 +410,7 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
 
       setNewMessage("");
       setSelectedFile(null);
+      setReplyingTo(null);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
@@ -552,6 +599,22 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
           <Button 
             variant="ghost" 
             size="icon"
+            onClick={() => setShowSearch(!showSearch)}
+          >
+            <Search className="w-5 h-5" />
+          </Button>
+          {chatType !== "private" && (
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => setShowGroupManagement(true)}
+            >
+              <Settings2 className="w-5 h-5" />
+            </Button>
+          )}
+          <Button 
+            variant="ghost" 
+            size="icon"
             onClick={() => handleStartCall("audio")}
           >
             <Phone className="w-5 h-5" />
@@ -563,14 +626,12 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
           >
             <Video className="w-5 h-5" />
           </Button>
-          <Button variant="ghost" size="icon">
-            <MoreVertical className="w-5 h-5" />
-          </Button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => {
+      <div className="flex flex-1 overflow-hidden">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.map((message) => {
           const isOwn = message.sender_id === currentUserId;
           const isDeleted = message.is_deleted;
           
@@ -596,6 +657,12 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
                     {message.forwarded_from_message_id && (
                       <div className="text-xs text-muted-foreground mb-1 px-2">
                         Переслано
+                      </div>
+                    )}
+                    {message.replied_to_message_id && message.replied_message && (
+                      <div className="text-xs bg-muted/50 rounded p-2 mb-1 border-l-2 border-primary">
+                        <span className="font-semibold">{message.replied_message.sender?.username}</span>
+                        <p className="text-muted-foreground truncate">{message.replied_message.content}</p>
                       </div>
                     )}
                     <div
@@ -637,9 +704,19 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
                             setForwardingMessageId(message.id);
                             setForwardingMessageContent(message.content);
                           }}
+                          onReply={() => {
+                            setReplyingTo({
+                              id: message.id,
+                              content: message.content,
+                              username: message.sender?.username || "Unknown"
+                            });
+                          }}
                         />
                       )}
                     </div>
+                    {!isDeleted && (
+                      <MessageReactions messageId={message.id} />
+                    )}
                   </div>
               </div>
             </div>
@@ -648,7 +725,36 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={sendMessage} className="p-4 border-t border-border bg-card">
+      {showSearch && (
+        <MessageSearch
+          chatId={chatId}
+          onMessageSelect={(messageId) => {
+            const element = document.getElementById(`message-${messageId}`);
+            element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }}
+          onClose={() => setShowSearch(false)}
+        />
+      )}
+    </div>
+
+      <form onSubmit={sendMessage} className="p-4 border-t border-border bg-card space-y-2">
+        {replyingTo && (
+          <div className="flex items-center gap-2 bg-muted p-2 rounded">
+            <Reply className="h-4 w-4 text-muted-foreground" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">{replyingTo.username}</p>
+              <p className="text-xs text-muted-foreground truncate">{replyingTo.content}</p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setReplyingTo(null)}
+            >
+              Отменить
+            </Button>
+          </div>
+        )}
         {showVoiceRecorder ? (
           <VoiceRecorder
             onRecordingComplete={handleVoiceRecording}
@@ -740,6 +846,15 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <GroupManagementDialog
+        open={showGroupManagement}
+        onOpenChange={setShowGroupManagement}
+        chatId={chatId}
+        chatName={chatName || ""}
+        chatType={chatType}
+        currentUserRole={currentUserRole}
+      />
     </div>
   );
 };

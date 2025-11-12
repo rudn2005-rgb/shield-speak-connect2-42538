@@ -1,4 +1,4 @@
-import { MoreVertical, Edit, Trash2, Forward } from "lucide-react";
+import { MoreVertical, Edit, Trash2, Forward, Reply } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,9 +11,10 @@ interface MessageActionsProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onForward?: () => void;
+  onReply?: () => void;
 }
 
-const MessageActions = ({ onEdit, onDelete, onForward }: MessageActionsProps) => {
+const MessageActions = ({ onEdit, onDelete, onForward, onReply }: MessageActionsProps) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -26,6 +27,12 @@ const MessageActions = ({ onEdit, onDelete, onForward }: MessageActionsProps) =>
           <DropdownMenuItem onClick={onEdit}>
             <Edit className="h-4 w-4 mr-2" />
             Редактировать
+          </DropdownMenuItem>
+        )}
+        {onReply && (
+          <DropdownMenuItem onClick={onReply}>
+            <Reply className="h-4 w-4 mr-2" />
+            Ответить
           </DropdownMenuItem>
         )}
         {onForward && (

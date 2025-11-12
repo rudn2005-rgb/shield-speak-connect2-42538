@@ -19,6 +19,7 @@ import VideoCall from "@/components/VideoCall";
 import AudioCall from "@/components/AudioCall";
 import CallHistory from "@/components/CallHistory";
 import RingtoneSettings from "@/components/RingtoneSettings";
+import SwipeablePanel from "@/components/SwipeablePanel";
 
 const Messenger = () => {
   const navigate = useNavigate();
@@ -295,7 +296,8 @@ const Messenger = () => {
   };
 
   return (
-    <div className="flex h-screen bg-background">
+    <SwipeablePanel>
+      <div className="flex h-screen bg-background">
       <div className="w-80 border-r border-border flex flex-col bg-card">
         <div className="p-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -484,7 +486,8 @@ const Messenger = () => {
           isInitiator={activeCall.isInitiator}
         />
       )}
-    </div>
+      </div>
+    </SwipeablePanel>
   );
 };
 
