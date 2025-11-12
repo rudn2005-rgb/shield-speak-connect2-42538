@@ -59,11 +59,20 @@ const InviteToGroupCallDialog = ({
   const loadContacts = async () => {
     setLoading(true);
     try {
-      // Получаем всех пользователей, с которыми есть активные чаты
+      // Получаем все чаты пользователя
+      const { data: userChats, error: chatsError } = await supabase
+        .from("chat_members")
+        .select("chat_id")
+        .eq("user_id", currentUserId);
+
+      if (chatsError) throw chatsError;
+
+      const chatIds = userChats?.map(c => c.chat_id) || [];
+
+      // Получаем всех участников из всех чатов пользователя
       const { data: chatMembers, error } = await supabase
         .from("chat_members")
         .select(`
-          chat_id,
           user_id,
           profiles:user_id (
             id,
@@ -72,7 +81,7 @@ const InviteToGroupCallDialog = ({
             avatar_url
           )
         `)
-        .eq("chat_id", chatId)
+        .in("chat_id", chatIds)
         .neq("user_id", currentUserId);
 
       if (error) throw error;
