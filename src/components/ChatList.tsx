@@ -15,7 +15,8 @@ interface Chat {
   updated_at: string;
   unread_count?: number;
   other_user?: {
-    display_name: string;
+    username: string;
+    full_name: string | null;
     avatar_url: string | null;
     status: string;
     last_seen: string | null;
@@ -157,7 +158,7 @@ const ChatList = ({ onSelectChat, selectedChatId }: ChatListProps) => {
             if (members) {
               const { data: profile } = await (supabase as any)
                 .from("profiles")
-                .select("display_name, avatar_url, status, last_seen")
+                .select("username, full_name, avatar_url, status, last_seen")
                 .eq("id", members.user_id)
                 .single();
 
@@ -240,7 +241,7 @@ const ChatList = ({ onSelectChat, selectedChatId }: ChatListProps) => {
       {chats.map((chat) => {
         const displayName = chat.is_group
           ? chat.name
-          : chat.other_user?.display_name || "Unknown";
+          : (chat.other_user?.full_name || chat.other_user?.username || "Неизвестный");
         const isOnline = chat.other_user 
           ? isUserOnline(chat.other_user.last_seen, chat.other_user.status)
           : false;

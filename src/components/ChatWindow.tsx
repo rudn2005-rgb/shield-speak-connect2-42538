@@ -63,7 +63,8 @@ interface Message {
   file_size?: number | null;
   file_type?: string | null;
   sender?: {
-    display_name: string;
+    username: string;
+    full_name: string | null;
     avatar_url: string | null;
   };
 }
@@ -188,12 +189,12 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
           setOtherUserId(members.user_id);
           const { data: profile } = await (supabase as any)
             .from("profiles")
-            .select("display_name, status, last_seen")
+            .select("username, full_name, status, last_seen")
             .eq("id", members.user_id)
             .single();
 
           if (profile) {
-            setChatName(profile.display_name);
+            setChatName(profile.full_name || profile.username || "Неизвестный");
             setOtherUserStatus({
               status: profile.status,
               lastSeen: profile.last_seen
@@ -222,7 +223,7 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
         messagesData.map(async (message) => {
           const { data: profile } = await (supabase as any)
             .from("profiles")
-            .select("display_name, avatar_url")
+            .select("username, full_name, avatar_url")
             .eq("id", message.sender_id)
             .single();
 
@@ -478,7 +479,7 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
                   <Avatar className="w-8 h-8">
                     <AvatarImage src={message.sender?.avatar_url || undefined} />
                     <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                      {(message.sender?.display_name && message.sender.display_name.charAt(0).toUpperCase()) || "?"}
+                      {((message.sender?.full_name || message.sender?.username) && (message.sender.full_name || message.sender.username)!.charAt(0).toUpperCase()) || "?"}
                     </AvatarFallback>
                   </Avatar>
                 )}
