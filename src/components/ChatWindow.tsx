@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, Phone, Video, MoreVertical } from "lucide-react";
+import { Send, Phone, Video, MoreVertical, Mic } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import { isUserOnline } from "@/utils/userStatus";
 import FileUpload from "./FileUpload";
 import MessageActions from "./MessageActions";
 import MessageAttachment from "./MessageAttachment";
+import VoiceRecorder from "./VoiceRecorder";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -85,6 +86,7 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -300,11 +302,8 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
 
         if (uploadError) throw uploadError;
 
-        const { data: urlData } = supabase.storage
-          .from('message-attachments')
-          .getPublicUrl(filePath);
-
-        fileUrl = urlData.publicUrl;
+        // Store file path instead of public URL - we'll generate signed URLs when needed
+        fileUrl = filePath;
         fileName = selectedFile.name;
         fileSize = selectedFile.size;
         fileType = selectedFile.type;
@@ -362,6 +361,40 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
   const handleEditMessage = (message: Message) => {
     setEditingMessageId(message.id);
     setNewMessage(message.content);
+  };
+
+  const handleVoiceRecording = async (audioBlob: Blob) => {
+    if (!currentUserId) return;
+
+    try {
+      // Create file from blob
+      const fileName = `voice-${Date.now()}.webm`;
+      const filePath = `${chatId}/${currentUserId}-${Date.now()}.webm`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('message-attachments')
+        .upload(filePath, audioBlob, {
+          contentType: 'audio/webm',
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Create message with voice attachment
+      const { error } = await supabase.from("messages").insert({
+        chat_id: chatId,
+        sender_id: currentUserId,
+        content: "🎤 Голосовое сообщение",
+        file_url: filePath,
+        file_name: fileName,
+        file_size: audioBlob.size,
+        file_type: 'audio/webm',
+      });
+
+      if (error) throw error;
+      setShowVoiceRecorder(false);
+    } catch (error: any) {
+      toast.error(getUserFriendlyError(error));
+    }
   };
 
   const handleDeleteMessage = async () => {
@@ -527,38 +560,54 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
       </div>
 
       <form onSubmit={sendMessage} className="p-4 border-t border-border bg-card">
-        <div className="flex gap-2 items-end">
-          <FileUpload
-            onFileSelect={setSelectedFile}
-            selectedFile={selectedFile}
-            onClearFile={() => setSelectedFile(null)}
+        {showVoiceRecorder ? (
+          <VoiceRecorder
+            onRecordingComplete={handleVoiceRecording}
+            onCancel={() => setShowVoiceRecorder(false)}
           />
-          <div className="flex-1">
-            <Input
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder={editingMessageId ? "Редактировать сообщение..." : "Введите сообщение..."}
-              className="flex-1"
+        ) : (
+          <div className="flex gap-2 items-end">
+            <FileUpload
+              onFileSelect={setSelectedFile}
+              selectedFile={selectedFile}
+              onClearFile={() => setSelectedFile(null)}
             />
-            {editingMessageId && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setEditingMessageId(null);
-                  setNewMessage("");
-                }}
-                className="mt-1"
-              >
-                Отменить редактирование
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowVoiceRecorder(true)}
+              className="h-10 w-10"
+            >
+              <Mic className="h-5 w-5" />
+            </Button>
+            <div className="flex-1">
+              <Input
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder={editingMessageId ? "Редактировать сообщение..." : "Введите сообщение..."}
+                className="flex-1"
+              />
+              {editingMessageId && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setEditingMessageId(null);
+                    setNewMessage("");
+                  }}
+                  className="mt-1"
+                >
+                  Отменить редактирование
+                </Button>
+              )}
+            </div>
+            <Button type="submit" disabled={!newMessage.trim() && !selectedFile}>
+              <Send className="w-4 h-4" />
+            </Button>
           </div>
-          <Button type="submit" disabled={!newMessage.trim() && !selectedFile}>
-            <Send className="w-4 h-4" />
-          </Button>
-        </div>
+        )}
       </form>
 
       <AlertDialog open={!!deletingMessageId} onOpenChange={(open) => !open && setDeletingMessageId(null)}>

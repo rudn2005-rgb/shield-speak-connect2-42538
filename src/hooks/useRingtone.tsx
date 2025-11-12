@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getSignedFileUrl, extractFilePathFromUrl } from "@/utils/fileStorage";
 
 export const useRingtone = (currentUserId: string, contactId?: string) => {
   const [ringtoneUrl, setRingtoneUrl] = useState<string | null>(null);
@@ -31,7 +32,18 @@ export const useRingtone = (currentUserId: string, contactId?: string) => {
         throw error;
       }
 
-      setRingtoneUrl(data?.ringtone_url || null);
+      if (data?.ringtone_url) {
+        // Generate signed URL for private ringtones bucket
+        const filePath = extractFilePathFromUrl(data.ringtone_url);
+        if (filePath) {
+          const signedUrl = await getSignedFileUrl('ringtones', filePath, 3600);
+          setRingtoneUrl(signedUrl);
+        } else {
+          setRingtoneUrl(null);
+        }
+      } else {
+        setRingtoneUrl(null);
+      }
     } catch (error) {
       console.error("Error loading ringtone:", error);
       setRingtoneUrl(null);

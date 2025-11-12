@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Upload, Play, Pause, Trash2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
+import { getSignedFileUrl } from "@/utils/fileStorage";
 
 interface RingtoneSettingsProps {
   isOpen: boolean;
@@ -77,16 +78,13 @@ const RingtoneSettings = ({ isOpen, onClose, currentUserId, contactId, contactNa
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("ringtones")
-        .getPublicUrl(fileName);
-
+      // Store file path instead of public URL for private bucket
       const { error: insertError } = await supabase
         .from("user_ringtones")
         .insert({
           user_id: currentUserId,
           contact_id: contactId || null,
-          ringtone_url: publicUrl,
+          ringtone_url: fileName,
           ringtone_name: file.name,
           is_default: !contactId && ringtones.length === 0,
         });
@@ -117,7 +115,19 @@ const RingtoneSettings = ({ isOpen, onClose, currentUserId, contactId, contactNa
       audioRef.current.pause();
     }
 
-    audioRef.current = new Audio(ringtone.ringtone_url);
+    // Generate signed URL for playback
+    const filePath = ringtone.ringtone_url.includes('/') 
+      ? ringtone.ringtone_url 
+      : `${currentUserId}/${ringtone.ringtone_url}`;
+    
+    const signedUrl = await getSignedFileUrl('ringtones', filePath, 3600);
+    
+    if (!signedUrl) {
+      toast.error("Не удалось загрузить мелодию");
+      return;
+    }
+
+    audioRef.current = new Audio(signedUrl);
     audioRef.current.play();
     setPlayingId(ringtone.id);
 
@@ -149,12 +159,14 @@ const RingtoneSettings = ({ isOpen, onClose, currentUserId, contactId, contactNa
 
   const handleDelete = async (ringtone: Ringtone) => {
     try {
-      const fileName = ringtone.ringtone_url.split("/").pop();
-      if (fileName) {
-        await supabase.storage
-          .from("ringtones")
-          .remove([`${currentUserId}/${fileName}`]);
-      }
+      // Extract just the filename from the stored path
+      const filePath = ringtone.ringtone_url.includes('/') 
+        ? ringtone.ringtone_url 
+        : `${currentUserId}/${ringtone.ringtone_url}`;
+
+      await supabase.storage
+        .from("ringtones")
+        .remove([filePath]);
 
       await supabase
         .from("user_ringtones")
