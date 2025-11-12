@@ -29,6 +29,7 @@ const AudioCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, otherU
   const audioRef = useRef<HTMLAudioElement>(null);
   const channelRef = useRef<any>(null);
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const callTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const configuration = {
     iceServers: [
@@ -68,6 +69,25 @@ const AudioCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, otherU
       }
     };
   }, [callStatus]);
+
+  // Таймер для автоматического завершения неотвеченного исходящего вызова
+  useEffect(() => {
+    if (isInitiator && callStatus === "connecting" && isOpen) {
+      callTimeoutRef.current = setTimeout(() => {
+        if (callStatus === "connecting") {
+          toast.error("Вызов не отвечен");
+          handleEndCall();
+        }
+      }, 45000); // 45 секунд
+    }
+
+    return () => {
+      if (callTimeoutRef.current) {
+        clearTimeout(callTimeoutRef.current);
+        callTimeoutRef.current = null;
+      }
+    };
+  }, [isInitiator, callStatus, isOpen]);
 
   const formatCallDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -317,10 +337,14 @@ const AudioCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, otherU
       channelRef.current = null;
     }
     
-    // Clear timer
+    // Clear timers
     if (callTimerRef.current) {
       clearInterval(callTimerRef.current);
       callTimerRef.current = null;
+    }
+    if (callTimeoutRef.current) {
+      clearTimeout(callTimeoutRef.current);
+      callTimeoutRef.current = null;
     }
     
     setLocalStream(null);
