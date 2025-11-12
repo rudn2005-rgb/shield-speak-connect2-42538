@@ -9,18 +9,23 @@ import ChatWindow from "@/components/ChatWindow";
 import ContactSearch from "@/components/ContactSearch";
 import ChatRequests from "@/components/ChatRequests";
 import { useUserPresence } from "@/hooks/useUserPresence";
-import { LogOut, Plus, Shield, MessageCircle, Bell, User } from "lucide-react";
+import { useCallHistory } from "@/hooks/useCallHistory";
+import { LogOut, Plus, Shield, MessageCircle, Bell, User, Phone, Music } from "lucide-react";
 import { toast } from "sonner";
 import { getUserFriendlyError } from "@/lib/errorHandler";
 import IncomingCallNotification from "@/components/IncomingCallNotification";
 import VideoCall from "@/components/VideoCall";
 import AudioCall from "@/components/AudioCall";
+import CallHistory from "@/components/CallHistory";
+import RingtoneSettings from "@/components/RingtoneSettings";
 
 const Messenger = () => {
   const navigate = useNavigate();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isRequestsOpen, setIsRequestsOpen] = useState(false);
+  const [isCallHistoryOpen, setIsCallHistoryOpen] = useState(false);
+  const [isRingtoneSettingsOpen, setIsRingtoneSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
@@ -42,6 +47,9 @@ const Messenger = () => {
 
   // Отслеживаем статус пользователя
   useUserPresence(currentUserId || null);
+  
+  // Отслеживаем пропущенные звонки
+  const { missedCallsCount } = useCallHistory(currentUserId);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -349,6 +357,32 @@ const Messenger = () => {
               />
             </DialogContent>
           </Dialog>
+
+          <Button 
+            variant="outline" 
+            className="w-full relative" 
+            onClick={() => setIsCallHistoryOpen(true)}
+          >
+            <Phone className="w-4 h-4 mr-2" />
+            История звонков
+            {missedCallsCount > 0 && (
+              <Badge 
+                variant="destructive" 
+                className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+              >
+                {missedCallsCount}
+              </Badge>
+            )}
+          </Button>
+
+          <Button 
+            variant="outline" 
+            className="w-full" 
+            onClick={() => setIsRingtoneSettingsOpen(true)}
+          >
+            <Music className="w-4 h-4 mr-2" />
+            Мелодии звонка
+          </Button>
         </div>
 
         <div className="flex-1 overflow-hidden">
@@ -385,10 +419,26 @@ const Messenger = () => {
       {incomingCall && (
         <IncomingCallNotification
           callerName={incomingCall.callerName}
+          callerId={incomingCall.callerId}
+          currentUserId={currentUserId}
           onAccept={handleAcceptCall}
           onDecline={handleDeclineCall}
         />
       )}
+
+      {/* Call history dialog */}
+      <CallHistory
+        isOpen={isCallHistoryOpen}
+        onClose={() => setIsCallHistoryOpen(false)}
+        currentUserId={currentUserId}
+      />
+
+      {/* Ringtone settings dialog */}
+      <RingtoneSettings
+        isOpen={isRingtoneSettingsOpen}
+        onClose={() => setIsRingtoneSettingsOpen(false)}
+        currentUserId={currentUserId}
+      />
 
       {/* Global active call dialogs */}
       {activeCall && activeCall.callType === "video" && (

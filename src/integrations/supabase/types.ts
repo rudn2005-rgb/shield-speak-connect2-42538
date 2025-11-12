@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      call_history: {
+        Row: {
+          call_type: string
+          caller_id: string
+          chat_id: string | null
+          created_at: string
+          duration: number | null
+          ended_at: string | null
+          id: string
+          receiver_id: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          call_type: string
+          caller_id: string
+          chat_id?: string | null
+          created_at?: string
+          duration?: number | null
+          ended_at?: string | null
+          id?: string
+          receiver_id: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          call_type?: string
+          caller_id?: string
+          chat_id?: string | null
+          created_at?: string
+          duration?: number | null
+          ended_at?: string | null
+          id?: string
+          receiver_id?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_history_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_members: {
         Row: {
           chat_id: string
@@ -230,6 +277,36 @@ export type Database = {
         }
         Relationships: []
       }
+      user_ringtones: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          id: string
+          is_default: boolean | null
+          ringtone_name: string
+          ringtone_url: string
+          user_id: string
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          ringtone_name: string
+          ringtone_url: string
+          user_id: string
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          ringtone_name?: string
+          ringtone_url?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -247,6 +324,7 @@ export type Database = {
         Args: { chat_name?: string; member_ids: string[] }
         Returns: string
       }
+      get_missed_calls_count: { Args: never; Returns: number }
       has_chat_request_with_user: {
         Args: { target_user_id: string }
         Returns: boolean

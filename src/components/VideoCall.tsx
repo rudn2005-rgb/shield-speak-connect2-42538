@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Phone, PhoneOff, Mic, MicOff, Video as VideoIcon, VideoOff, Minimize2, Maximize2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import InviteToGroupCallDialog from "./InviteToGroupCallDialog";
+import { useCallHistory } from "@/hooks/useCallHistory";
 
 interface VideoCallProps {
   isOpen: boolean;
@@ -25,12 +26,15 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
   const [callDuration, setCallDuration] = useState(0);
   const [isMinimized, setIsMinimized] = useState(false);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [callStartTime] = useState(new Date().toISOString());
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const channelRef = useRef<any>(null);
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
   const callTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const { recordCall, updateCallStatus } = useCallHistory(currentUserId);
 
   const configuration = {
     iceServers: [
@@ -46,6 +50,19 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
     if (import.meta.env.DEV) {
       console.log("VideoCall opened, isInitiator:", isInitiator);
     }
+
+    // Записываем начало звонка
+    if (isInitiator) {
+      recordCall({
+        caller_id: currentUserId,
+        receiver_id: otherUserId,
+        call_type: "video",
+        status: "no-answer",
+        started_at: callStartTime,
+        chat_id: chatId,
+      });
+    }
+
     initializeCall();
 
     return () => {
@@ -169,6 +186,11 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
         }
         setCallStatus("connected");
         toast.success("Звонок подключен");
+
+        // Обновляем статус звонка на "connected"
+        if (isInitiator) {
+          updateCallStatus(currentUserId, otherUserId, callStartTime, "completed");
+        }
       };
 
       // Обрабатываем ICE candidates
@@ -359,6 +381,12 @@ const VideoCall = ({ isOpen, onClose, chatId, currentUserId, otherUserId, isInit
   };
 
   const handleEndCall = () => {
+    // Обновляем статус звонка
+    if (isInitiator) {
+      const finalStatus = callStatus === "connected" ? "completed" : "no-answer";
+      updateCallStatus(currentUserId, otherUserId, callStartTime, finalStatus, callDuration);
+    }
+
     if (channelRef.current) {
       sendSignalingMessage({ type: "end-call" });
     }
