@@ -235,6 +235,7 @@ export type Database = {
           username: string
         }[]
       }
+      user_is_member_of_chat: { Args: { p_chat_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import Cropper, { Area } from "react-easy-crop";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Slider } from "@/components/ui/slider";
 import { Upload, Loader2 } from "lucide-react";
@@ -184,6 +184,7 @@ export const AvatarUpload = ({ currentAvatarUrl, userId, username, onAvatarUpdat
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Обрезать изображение</DialogTitle>
+            <DialogDescription>Перемещайте и масштабируйте, чтобы обрезать аватар.</DialogDescription>
           </DialogHeader>
           
           {selectedImage && (
