@@ -218,6 +218,14 @@ export type Database = {
         Args: { chat_name?: string; member_ids: string[] }
         Returns: string
       }
+      has_chat_request_with_user: {
+        Args: { target_user_id: string }
+        Returns: boolean
+      }
+      is_chat_member_with_user: {
+        Args: { target_user_id: string }
+        Returns: boolean
+      }
       public_profile_search: {
         Args: { search_query: string }
         Returns: {
