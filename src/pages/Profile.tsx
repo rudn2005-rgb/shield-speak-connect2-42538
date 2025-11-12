@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { getUserFriendlyError } from "@/lib/errorHandler";
 import { z } from "zod";
+import { AvatarUpload } from "@/components/AvatarUpload";
 
 const profileSchema = z.object({
   username: z.string().trim().min(2, "Имя пользователя должно содержать минимум 2 символа").max(50, "Имя пользователя должно быть короче 50 символов"),
@@ -31,6 +32,7 @@ const Profile = () => {
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [isPublic, setIsPublic] = useState(true);
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
   useEffect(() => {
@@ -49,7 +51,7 @@ const Profile = () => {
 
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("username, full_name, phone_number, is_public")
+        .select("username, full_name, phone_number, is_public, avatar_url")
         .eq("id", session.user.id)
         .maybeSingle();
 
@@ -60,6 +62,7 @@ const Profile = () => {
         setFullName(profile.full_name || "");
         setPhoneNumber(profile.phone_number || "");
         setIsPublic(profile.is_public ?? true);
+        setAvatarUrl(profile.avatar_url || "");
       }
     } catch (error) {
       toast.error(getUserFriendlyError(error));
@@ -151,40 +154,47 @@ const Profile = () => {
           className="mb-4"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Messenger
+          Назад к мессенджеру
         </Button>
 
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Profile Settings</CardTitle>
+              <CardTitle>Настройки профиля</CardTitle>
               <CardDescription>
-                Update your profile information and privacy settings
+                Обновите информацию профиля и настройки приватности
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
+              <AvatarUpload
+                currentAvatarUrl={avatarUrl}
+                userId={userId}
+                username={username}
+                onAvatarUpdated={setAvatarUrl}
+              />
+
               <div className="space-y-2">
-                <Label htmlFor="username">Username *</Label>
+                <Label htmlFor="username">Имя пользователя *</Label>
                 <Input
                   id="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter username"
+                  placeholder="Введите имя пользователя"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
+                <Label htmlFor="fullName">Полное имя</Label>
                 <Input
                   id="fullName"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Enter full name"
+                  placeholder="Введите полное имя"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
+                <Label htmlFor="phone">Номер телефона</Label>
                 <Input
                   id="phone"
                   type="tel"
@@ -196,9 +206,9 @@ const Profile = () => {
 
               <div className="flex items-center justify-between rounded-lg border border-border p-4">
                 <div className="space-y-0.5">
-                  <Label htmlFor="isPublic">Public Profile</Label>
+                  <Label htmlFor="isPublic">Публичный профиль</Label>
                   <p className="text-sm text-muted-foreground">
-                    Allow other users to find you in search
+                    Разрешить другим пользователям находить вас в поиске
                   </p>
                 </div>
                 <Switch
@@ -216,10 +226,10 @@ const Profile = () => {
                 {saving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
+                    Сохранение...
                   </>
                 ) : (
-                  "Save Profile"
+                  "Сохранить профиль"
                 )}
               </Button>
             </CardContent>
@@ -227,20 +237,20 @@ const Profile = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle>Change Password</CardTitle>
+              <CardTitle>Изменить пароль</CardTitle>
               <CardDescription>
-                Update your account password
+                Обновите пароль вашей учетной записи
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="newPassword">New Password</Label>
+                <Label htmlFor="newPassword">Новый пароль</Label>
                 <Input
                   id="newPassword"
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new password (min 6 characters)"
+                  placeholder="Введите новый пароль (минимум 6 символов)"
                 />
               </div>
 
@@ -253,10 +263,10 @@ const Profile = () => {
                 {saving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Changing...
+                    Изменение...
                   </>
                 ) : (
-                  "Change Password"
+                  "Изменить пароль"
                 )}
               </Button>
             </CardContent>
