@@ -12,13 +12,13 @@ import { getUserFriendlyError } from "@/lib/errorHandler";
 import { z } from "zod";
 
 const profileSchema = z.object({
-  username: z.string().min(2, "Username must be at least 2 characters").max(50, "Username must be less than 50 characters"),
-  full_name: z.string().max(100, "Name must be less than 100 characters").optional(),
-  phone_number: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid phone number format").optional().or(z.literal("")),
+  username: z.string().trim().min(2, "Имя пользователя должно содержать минимум 2 символа").max(50, "Имя пользователя должно быть короче 50 символов"),
+  full_name: z.string().trim().max(100, "Имя должно быть короче 100 символов").optional().or(z.literal("")),
+  phone_number: z.string().trim().regex(/^(\+?[1-9]\d{1,14})?$/, "Неверный формат номера телефона").optional().or(z.literal("")),
 });
 
 const passwordSchema = z.object({
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(6, "Пароль должен содержать минимум 6 символов"),
 });
 
 const Profile = () => {
@@ -51,7 +51,7 @@ const Profile = () => {
         .from("profiles")
         .select("username, full_name, phone_number, is_public")
         .eq("id", session.user.id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 
@@ -74,9 +74,9 @@ const Profile = () => {
 
       // Validate profile data
       const profileData = profileSchema.parse({
-        username: username.trim(),
-        full_name: fullName.trim(),
-        phone_number: phoneNumber.trim(),
+        username,
+        full_name: fullName,
+        phone_number: phoneNumber,
       });
 
       const { error } = await supabase
@@ -91,7 +91,7 @@ const Profile = () => {
 
       if (error) throw error;
 
-      toast.success("Profile updated successfully");
+      toast.success("Профиль успешно обновлен");
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
@@ -106,7 +106,7 @@ const Profile = () => {
   const handleChangePassword = async () => {
     try {
       if (!newPassword.trim()) {
-        toast.error("Please enter a new password");
+        toast.error("Введите новый пароль");
         return;
       }
 
@@ -121,7 +121,7 @@ const Profile = () => {
 
       if (error) throw error;
 
-      toast.success("Password changed successfully");
+      toast.success("Пароль успешно изменен");
       setNewPassword("");
     } catch (error) {
       if (error instanceof z.ZodError) {
