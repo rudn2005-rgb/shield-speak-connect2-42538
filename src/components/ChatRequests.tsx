@@ -121,24 +121,50 @@ const ChatRequests = ({ currentUserId, onRequestAccepted }: ChatRequestsProps) =
   const acceptRequest = async (requestId: string, senderId: string) => {
     setLoading(true);
     try {
-      // Use secure database function to create chat with both members
-      const { data: newChatId, error: chatError } = await supabase
-        .rpc("create_chat_with_members", {
-          member_ids: [currentUserId, senderId],
-        });
-
-      if (chatError) throw chatError;
-
-      // Update request status to accepted
+      // 1) Сначала помечаем запрос как "accepted" (требование функции create_chat_with_members)
       const { error: updateError } = await supabase
         .from("chat_requests")
         .update({ status: "accepted" })
-        .eq("id", requestId);
-
+        .eq("id", requestId)
+        .eq("receiver_id", currentUserId)
+        .eq("status", "pending");
       if (updateError) throw updateError;
 
+      // 2) Проверяем, не существует ли уже личный чат между пользователями
+      const { data: myMemberships, error: myChatsError } = await supabase
+        .from("chat_members")
+        .select("chat_id")
+        .eq("user_id", currentUserId);
+      if (myChatsError) throw myChatsError;
+
+      let existingChatId: string | null = null;
+      if (myMemberships && myMemberships.length > 0) {
+        const chatIds = myMemberships.map((m: any) => m.chat_id);
+        const { data: otherMembership, error: otherChatsError } = await supabase
+          .from("chat_members")
+          .select("chat_id")
+          .in("chat_id", chatIds)
+          .eq("user_id", senderId)
+          .maybeSingle();
+        if (otherChatsError && otherChatsError.code !== "PGRST116") throw otherChatsError; // ignore no rows
+        if (otherMembership) existingChatId = otherMembership.chat_id as string;
+      }
+
+      // 3) Если чат уже есть — просто открыть его. Иначе создать новый через RPC
+      let finalChatId = existingChatId;
+      if (!finalChatId) {
+        const { data: newChatId, error: chatError } = await supabase.rpc(
+          "create_chat_with_members",
+          {
+            member_ids: [currentUserId, senderId],
+          }
+        );
+        if (chatError) throw chatError;
+        finalChatId = newChatId as string;
+      }
+
       toast.success("Запрос принят! Открываю чат...");
-      onRequestAccepted(newChatId);
+      onRequestAccepted(finalChatId!);
     } catch (error: any) {
       toast.error(getUserFriendlyError(error));
     } finally {
