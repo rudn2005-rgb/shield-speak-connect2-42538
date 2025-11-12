@@ -298,7 +298,7 @@ const Messenger = () => {
         <div className="p-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Shield className="w-6 h-6 text-primary" />
-            <h1 className="text-xl font-bold">SecureChat</h1>
+            <h1 className="text-xl font-bold">GoodOK</h1>
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={() => navigate("/profile")}>
@@ -407,7 +407,7 @@ const Messenger = () => {
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <MessageCircle className="w-24 h-24 text-muted-foreground mb-6" />
-            <h2 className="text-2xl font-bold mb-2">Добро пожаловать в SecureChat</h2>
+            <h2 className="text-2xl font-bold mb-2">Добро пожаловать в GoodOK</h2>
             <p className="text-muted-foreground max-w-md">
               Выберите чат слева или создайте новый, чтобы начать безопасное общение
             </p>
