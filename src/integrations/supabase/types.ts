@@ -66,18 +66,21 @@ export type Database = {
           chat_id: string
           id: string
           joined_at: string | null
+          role: string | null
           user_id: string
         }
         Insert: {
           chat_id: string
           id?: string
           joined_at?: string | null
+          role?: string | null
           user_id: string
         }
         Update: {
           chat_id?: string
           id?: string
           joined_at?: string | null
+          role?: string | null
           user_id?: string
         }
         Relationships: [
@@ -116,6 +119,7 @@ export type Database = {
       }
       chats: {
         Row: {
+          chat_type: string | null
           created_at: string | null
           id: string
           is_group: boolean | null
@@ -123,6 +127,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          chat_type?: string | null
           created_at?: string | null
           id?: string
           is_group?: boolean | null
@@ -130,6 +135,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          chat_type?: string | null
           created_at?: string | null
           id?: string
           is_group?: boolean | null
@@ -177,6 +183,8 @@ export type Database = {
           file_size: number | null
           file_type: string | null
           file_url: string | null
+          forwarded_from_chat_id: string | null
+          forwarded_from_message_id: string | null
           id: string
           is_deleted: boolean | null
           is_read: boolean | null
@@ -191,6 +199,8 @@ export type Database = {
           file_size?: number | null
           file_type?: string | null
           file_url?: string | null
+          forwarded_from_chat_id?: string | null
+          forwarded_from_message_id?: string | null
           id?: string
           is_deleted?: boolean | null
           is_read?: boolean | null
@@ -205,6 +215,8 @@ export type Database = {
           file_size?: number | null
           file_type?: string | null
           file_url?: string | null
+          forwarded_from_chat_id?: string | null
+          forwarded_from_message_id?: string | null
           id?: string
           is_deleted?: boolean | null
           is_read?: boolean | null
@@ -216,6 +228,20 @@ export type Database = {
             columns: ["chat_id"]
             isOneToOne: false
             referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_forwarded_from_chat_id_fkey"
+            columns: ["forwarded_from_chat_id"]
+            isOneToOne: false
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_forwarded_from_message_id_fkey"
+            columns: ["forwarded_from_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
         ]

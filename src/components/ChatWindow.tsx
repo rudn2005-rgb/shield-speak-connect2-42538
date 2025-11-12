@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, Phone, Video, MoreVertical, Mic } from "lucide-react";
+import { Send, Phone, Video, MoreVertical, Mic, VideoIcon } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
@@ -14,6 +14,9 @@ import FileUpload from "./FileUpload";
 import MessageActions from "./MessageActions";
 import MessageAttachment from "./MessageAttachment";
 import VoiceRecorder from "./VoiceRecorder";
+import VideoRecorder from "./VideoRecorder";
+import ForwardMessageDialog from "./ForwardMessageDialog";
+import MessageStatus from "./MessageStatus";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,11 +66,14 @@ interface Message {
   file_name?: string | null;
   file_size?: number | null;
   file_type?: string | null;
+  forwarded_from_message_id?: string | null;
+  forwarded_from_chat_id?: string | null;
   sender?: {
     username: string;
     full_name: string | null;
     avatar_url: string | null;
   };
+  read_by?: Array<{ user_id: string }>;
 }
 
 interface ChatWindowProps {
@@ -87,6 +93,9 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [showVideoRecorder, setShowVideoRecorder] = useState(false);
+  const [forwardingMessageId, setForwardingMessageId] = useState<string | null>(null);
+  const [forwardingMessageContent, setForwardingMessageContent] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -229,7 +238,13 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
             .eq("id", message.sender_id)
             .single();
 
-          return { ...message, sender: profile };
+          // Get read status
+          const { data: reads } = await supabase
+            .from("message_reads")
+            .select("user_id")
+            .eq("message_id", message.id);
+
+          return { ...message, sender: profile, read_by: reads || [] };
         })
       );
 
@@ -367,7 +382,6 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
     if (!currentUserId) return;
 
     try {
-      // Create file from blob
       const fileName = `voice-${Date.now()}.webm`;
       const filePath = `${chatId}/${currentUserId}-${Date.now()}.webm`;
       
@@ -379,7 +393,6 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
 
       if (uploadError) throw uploadError;
 
-      // Create message with voice attachment
       const { error } = await supabase.from("messages").insert({
         chat_id: chatId,
         sender_id: currentUserId,
@@ -394,6 +407,69 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
       setShowVoiceRecorder(false);
     } catch (error: any) {
       toast.error(getUserFriendlyError(error));
+    }
+  };
+
+  const handleVideoRecording = async (videoBlob: Blob) => {
+    if (!currentUserId) return;
+
+    try {
+      const fileName = `video-${Date.now()}.webm`;
+      const filePath = `${chatId}/${currentUserId}-${Date.now()}.webm`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('message-attachments')
+        .upload(filePath, videoBlob, {
+          contentType: 'video/webm',
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { error } = await supabase.from("messages").insert({
+        chat_id: chatId,
+        sender_id: currentUserId,
+        content: "🎥 Видеосообщение",
+        file_url: filePath,
+        file_name: fileName,
+        file_size: videoBlob.size,
+        file_type: 'video/webm',
+      });
+
+      if (error) throw error;
+      setShowVideoRecorder(false);
+    } catch (error: any) {
+      toast.error(getUserFriendlyError(error));
+    }
+  };
+
+  const handleForwardMessage = async (targetChatId: string) => {
+    if (!forwardingMessageId || !currentUserId) return;
+
+    try {
+      const originalMessage = messages.find(m => m.id === forwardingMessageId);
+      if (!originalMessage) return;
+
+      const { error } = await supabase.from("messages").insert({
+        chat_id: targetChatId,
+        sender_id: currentUserId,
+        content: originalMessage.content,
+        file_url: originalMessage.file_url,
+        file_name: originalMessage.file_name,
+        file_size: originalMessage.file_size,
+        file_type: originalMessage.file_type,
+        forwarded_from_message_id: originalMessage.id,
+        forwarded_from_chat_id: chatId,
+      });
+
+      if (error) throw error;
+
+      await supabase
+        .from("chats")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", targetChatId);
+    } catch (error: any) {
+      toast.error(getUserFriendlyError(error));
+      throw error;
     }
   };
 
@@ -516,42 +592,55 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
                     </AvatarFallback>
                   </Avatar>
                 )}
-                <div className="flex-1">
-                  <div
-                    className={`rounded-2xl px-4 py-2 ${
-                      isOwn
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-secondary text-secondary-foreground"
-                    } ${isDeleted ? "opacity-60 italic" : ""}`}
-                  >
-                    <p className="text-sm">{message.content}</p>
-                    {message.file_url && !isDeleted && (
-                      <MessageAttachment
-                        fileUrl={message.file_url}
-                        fileName={message.file_name || "file"}
-                        fileSize={message.file_size || undefined}
-                        fileType={message.file_type || undefined}
+                  <div className="flex-1">
+                    {message.forwarded_from_message_id && (
+                      <div className="text-xs text-muted-foreground mb-1 px-2">
+                        Переслано
+                      </div>
+                    )}
+                    <div
+                      className={`rounded-2xl px-4 py-2 ${
+                        isOwn
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary text-secondary-foreground"
+                      } ${isDeleted ? "opacity-60 italic" : ""}`}
+                    >
+                      <p className="text-sm">{message.content}</p>
+                      {message.file_url && !isDeleted && (
+                        <MessageAttachment
+                          fileUrl={message.file_url}
+                          fileName={message.file_name || "file"}
+                          fileSize={message.file_size || undefined}
+                          fileType={message.file_type || undefined}
+                        />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 px-2">
+                      <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(message.created_at), {
+                          addSuffix: true,
+                          locale: ru,
+                        })}
+                      </p>
+                      {message.edited_at && (
+                        <span className="text-xs text-muted-foreground">(ред.)</span>
+                      )}
+                      <MessageStatus
+                        isOwn={isOwn}
+                        isRead={message.read_by ? message.read_by.length > 0 : false}
                       />
-                    )}
+                      {!isDeleted && (
+                        <MessageActions
+                          onEdit={isOwn ? () => handleEditMessage(message) : undefined}
+                          onDelete={isOwn ? () => setDeletingMessageId(message.id) : undefined}
+                          onForward={() => {
+                            setForwardingMessageId(message.id);
+                            setForwardingMessageContent(message.content);
+                          }}
+                        />
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-1 px-2">
-                    <p className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(message.created_at), {
-                        addSuffix: true,
-                        locale: ru,
-                      })}
-                    </p>
-                    {message.edited_at && (
-                      <span className="text-xs text-muted-foreground">(ред.)</span>
-                    )}
-                    {isOwn && !isDeleted && (
-                      <MessageActions
-                        onEdit={() => handleEditMessage(message)}
-                        onDelete={() => setDeletingMessageId(message.id)}
-                      />
-                    )}
-                  </div>
-                </div>
               </div>
             </div>
           );
@@ -564,6 +653,11 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
           <VoiceRecorder
             onRecordingComplete={handleVoiceRecording}
             onCancel={() => setShowVoiceRecorder(false)}
+          />
+        ) : showVideoRecorder ? (
+          <VideoRecorder
+            onRecordingComplete={handleVideoRecording}
+            onCancel={() => setShowVideoRecorder(false)}
           />
         ) : (
           <div className="flex gap-2 items-end">
@@ -580,6 +674,15 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
               className="h-10 w-10"
             >
               <Mic className="h-5 w-5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowVideoRecorder(true)}
+              className="h-10 w-10"
+            >
+              <VideoIcon className="h-5 w-5" />
             </Button>
             <div className="flex-1">
               <Input
@@ -609,6 +712,19 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
           </div>
         )}
       </form>
+
+      <ForwardMessageDialog
+        open={!!forwardingMessageId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setForwardingMessageId(null);
+            setForwardingMessageContent("");
+          }
+        }}
+        messageId={forwardingMessageId || ""}
+        messageContent={forwardingMessageContent}
+        onForward={handleForwardMessage}
+      />
 
       <AlertDialog open={!!deletingMessageId} onOpenChange={(open) => !open && setDeletingMessageId(null)}>
         <AlertDialogContent>

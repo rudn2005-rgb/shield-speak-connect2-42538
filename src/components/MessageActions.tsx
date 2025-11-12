@@ -1,4 +1,4 @@
-import { MoreVertical, Edit, Trash2 } from "lucide-react";
+import { MoreVertical, Edit, Trash2, Forward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -8,11 +8,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 interface MessageActionsProps {
-  onEdit: () => void;
-  onDelete: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onForward?: () => void;
 }
 
-const MessageActions = ({ onEdit, onDelete }: MessageActionsProps) => {
+const MessageActions = ({ onEdit, onDelete, onForward }: MessageActionsProps) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -21,14 +22,24 @@ const MessageActions = ({ onEdit, onDelete }: MessageActionsProps) => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={onEdit}>
-          <Edit className="h-4 w-4 mr-2" />
-          Редактировать
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onDelete} className="text-destructive">
-          <Trash2 className="h-4 w-4 mr-2" />
-          Удалить
-        </DropdownMenuItem>
+        {onEdit && (
+          <DropdownMenuItem onClick={onEdit}>
+            <Edit className="h-4 w-4 mr-2" />
+            Редактировать
+          </DropdownMenuItem>
+        )}
+        {onForward && (
+          <DropdownMenuItem onClick={onForward}>
+            <Forward className="h-4 w-4 mr-2" />
+            Переслать
+          </DropdownMenuItem>
+        )}
+        {onDelete && (
+          <DropdownMenuItem onClick={onDelete} className="text-destructive">
+            <Trash2 className="h-4 w-4 mr-2" />
+            Удалить
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

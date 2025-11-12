@@ -8,9 +8,10 @@ import ChatList from "@/components/ChatList";
 import ChatWindow from "@/components/ChatWindow";
 import ContactSearch from "@/components/ContactSearch";
 import ChatRequests from "@/components/ChatRequests";
+import CreateGroupDialog from "@/components/CreateGroupDialog";
 import { useUserPresence } from "@/hooks/useUserPresence";
 import { useCallHistory } from "@/hooks/useCallHistory";
-import { LogOut, Plus, Shield, MessageCircle, Bell, User, Phone, Music } from "lucide-react";
+import { LogOut, Plus, Shield, MessageCircle, Bell, User, Phone, Music, Users } from "lucide-react";
 import { toast } from "sonner";
 import { getUserFriendlyError } from "@/lib/errorHandler";
 import IncomingCallNotification from "@/components/IncomingCallNotification";
@@ -26,6 +27,7 @@ const Messenger = () => {
   const [isRequestsOpen, setIsRequestsOpen] = useState(false);
   const [isCallHistoryOpen, setIsCallHistoryOpen] = useState(false);
   const [isRingtoneSettingsOpen, setIsRingtoneSettingsOpen] = useState(false);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
@@ -329,6 +331,15 @@ const Messenger = () => {
             </DialogContent>
           </Dialog>
 
+          <Button 
+            variant="outline" 
+            className="w-full" 
+            onClick={() => setIsCreateGroupOpen(true)}
+          >
+            <Users className="w-4 h-4 mr-2" />
+            Создать группу/канал
+          </Button>
+
           <Dialog open={isRequestsOpen} onOpenChange={setIsRequestsOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="w-full relative">
@@ -438,6 +449,16 @@ const Messenger = () => {
         isOpen={isRingtoneSettingsOpen}
         onClose={() => setIsRingtoneSettingsOpen(false)}
         currentUserId={currentUserId}
+      />
+
+      {/* Create group dialog */}
+      <CreateGroupDialog
+        open={isCreateGroupOpen}
+        onOpenChange={setIsCreateGroupOpen}
+        onGroupCreated={(chatId) => {
+          setSelectedChatId(chatId);
+          setIsCreateGroupOpen(false);
+        }}
       />
 
       {/* Global active call dialogs */}
