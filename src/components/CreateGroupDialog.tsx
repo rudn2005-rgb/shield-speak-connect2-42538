@@ -128,7 +128,10 @@ const CreateGroupDialog = ({
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      if (!user) {
+        toast.error("Необходима авторизация");
+        return;
+      }
 
       // Create chat
       const { data: chat, error: chatError } = await supabase
@@ -141,7 +144,16 @@ const CreateGroupDialog = ({
         .select()
         .single();
 
-      if (chatError) throw chatError;
+      if (chatError) {
+        console.error("Error creating chat:", chatError);
+        toast.error("Ошибка при создании чата");
+        return;
+      }
+
+      if (!chat) {
+        toast.error("Чат не был создан");
+        return;
+      }
 
       // Add creator as owner
       const members = [
@@ -157,16 +169,20 @@ const CreateGroupDialog = ({
         .from("chat_members")
         .insert(members);
 
-      if (membersError) throw membersError;
+      if (membersError) {
+        console.error("Error adding members:", membersError);
+        toast.error("Ошибка при добавлении участников");
+        return;
+      }
 
       toast.success(
         chatType === "channel" ? "Канал создан" : "Группа создана"
       );
       onGroupCreated(chat.id);
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating group:", error);
-      toast.error("Ошибка при создании");
+      toast.error(error?.message || "Ошибка при создании");
     } finally {
       setLoading(false);
     }

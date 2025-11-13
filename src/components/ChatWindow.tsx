@@ -589,9 +589,6 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
           </Avatar>
           <div>
             <h2 className="font-semibold">{chatName || "Неизвестный контакт"}</h2>
-            <p className="text-xs text-muted-foreground">
-              {isUserOnline(otherUserStatus.lastSeen, otherUserStatus.status) ? "онлайн" : "не в сети"}
-            </p>
           </div>
         </div>
 
@@ -695,6 +692,7 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
                       <MessageStatus
                         isOwn={isOwn}
                         isRead={message.read_by ? message.read_by.length > 0 : false}
+                        isDelivered={true}
                       />
                       {!isDeleted && (
                         <MessageActions
