@@ -30,7 +30,7 @@ const MessageReactions = ({ messageId, onReactionChange }: MessageReactionsProps
   useEffect(() => {
     const init = async () => {
       await getCurrentUser();
-      loadReactions();
+      await loadReactions();
     };
     
     init();
@@ -40,7 +40,20 @@ const MessageReactions = ({ messageId, onReactionChange }: MessageReactionsProps
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
+          schema: "public",
+          table: "message_reactions",
+          filter: `message_id=eq.${messageId}`,
+        },
+        () => {
+          loadReactions();
+          onReactionChange?.();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
           schema: "public",
           table: "message_reactions",
           filter: `message_id=eq.${messageId}`,

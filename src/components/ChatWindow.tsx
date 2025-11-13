@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Send, Phone, Video, MoreVertical, Mic, VideoIcon, Search, Settings2, Reply } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -124,6 +124,17 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
           schema: "public",
           table: "messages",
           filter: `chat_id=eq.${chatId}`,
+        },
+        (payload) => {
+          loadMessages();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "message_reads",
         },
         (payload) => {
           loadMessages();
@@ -681,10 +692,7 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
                     </div>
                     <div className="flex items-center gap-2 mt-1 px-2">
                       <p className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(message.created_at), {
-                          addSuffix: true,
-                          locale: ru,
-                        })}
+                        {format(new Date(message.created_at), 'dd.MM.yyyy HH:mm', { locale: ru })}
                       </p>
                       {message.edited_at && (
                         <span className="text-xs text-muted-foreground">(ред.)</span>
