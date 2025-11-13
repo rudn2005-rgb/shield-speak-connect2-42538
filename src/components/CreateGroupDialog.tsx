@@ -155,24 +155,34 @@ const CreateGroupDialog = ({
         return;
       }
 
-      // Add creator as owner
-      const members = [
-        { chat_id: chat.id, user_id: user.id, role: "owner" },
-        ...Array.from(selectedContacts).map((contactId) => ({
+      // Add creator as owner first
+      const { error: ownerError } = await supabase
+        .from("chat_members")
+        .insert({ chat_id: chat.id, user_id: user.id, role: "owner" });
+
+      if (ownerError) {
+        console.error("Error adding owner:", ownerError);
+        toast.error("Ошибка при добавлении владельца");
+        return;
+      }
+
+      // Then add other members
+      if (selectedContacts.size > 0) {
+        const otherMembers = Array.from(selectedContacts).map((contactId) => ({
           chat_id: chat.id,
           user_id: contactId,
           role: "member" as const,
-        })),
-      ];
+        }));
 
-      const { error: membersError } = await supabase
-        .from("chat_members")
-        .insert(members);
+        const { error: membersError } = await supabase
+          .from("chat_members")
+          .insert(otherMembers);
 
-      if (membersError) {
-        console.error("Error adding members:", membersError);
-        toast.error("Ошибка при добавлении участников");
-        return;
+        if (membersError) {
+          console.error("Error adding members:", membersError);
+          toast.error("Ошибка при добавлении участников");
+          return;
+        }
       }
 
       toast.success(

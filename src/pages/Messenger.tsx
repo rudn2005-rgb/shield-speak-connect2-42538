@@ -11,14 +11,13 @@ import ChatRequests from "@/components/ChatRequests";
 import CreateGroupDialog from "@/components/CreateGroupDialog";
 import { useUserPresence } from "@/hooks/useUserPresence";
 import { useCallHistory } from "@/hooks/useCallHistory";
-import { LogOut, Plus, Shield, MessageCircle, Bell, User, Phone, Music, Users } from "lucide-react";
+import { LogOut, Plus, Shield, MessageCircle, Bell, User, Phone, Users } from "lucide-react";
 import { toast } from "sonner";
 import { getUserFriendlyError } from "@/lib/errorHandler";
 import IncomingCallNotification from "@/components/IncomingCallNotification";
 import VideoCall from "@/components/VideoCall";
 import AudioCall from "@/components/AudioCall";
 import CallHistory from "@/components/CallHistory";
-import RingtoneSettings from "@/components/RingtoneSettings";
 import SwipeablePanel from "@/components/SwipeablePanel";
 
 const Messenger = () => {
@@ -27,7 +26,6 @@ const Messenger = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isRequestsOpen, setIsRequestsOpen] = useState(false);
   const [isCallHistoryOpen, setIsCallHistoryOpen] = useState(false);
-  const [isRingtoneSettingsOpen, setIsRingtoneSettingsOpen] = useState(false);
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string>("");
@@ -388,14 +386,6 @@ const Messenger = () => {
             )}
           </Button>
 
-          <Button 
-            variant="outline" 
-            className="w-full" 
-            onClick={() => setIsRingtoneSettingsOpen(true)}
-          >
-            <Music className="w-4 h-4 mr-2" />
-            Мелодии звонка
-          </Button>
         </div>
 
         <div className="flex-1 overflow-hidden">
@@ -443,13 +433,6 @@ const Messenger = () => {
       <CallHistory
         isOpen={isCallHistoryOpen}
         onClose={() => setIsCallHistoryOpen(false)}
-        currentUserId={currentUserId}
-      />
-
-      {/* Ringtone settings dialog */}
-      <RingtoneSettings
-        isOpen={isRingtoneSettingsOpen}
-        onClose={() => setIsRingtoneSettingsOpen(false)}
         currentUserId={currentUserId}
       />
 

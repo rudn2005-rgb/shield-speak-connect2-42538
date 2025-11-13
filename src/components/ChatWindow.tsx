@@ -699,7 +699,7 @@ const ChatWindow = ({ chatId, onStartCall }: ChatWindowProps) => {
                       )}
                       <MessageStatus
                         isOwn={isOwn}
-                        isRead={message.read_by ? message.read_by.length > 0 : false}
+                        isRead={message.read_by ? message.read_by.some((read: any) => read.user_id !== message.sender_id) : false}
                         isDelivered={!!message.created_at}
                       />
                       {!isDeleted && (
