@@ -11,6 +11,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { getUserFriendlyError } from "@/lib/errorHandler";
 import { z } from "zod";
 import { AvatarUpload } from "@/components/AvatarUpload";
+import RingtoneSettings from "@/components/RingtoneSettings";
 
 const profileSchema = z.object({
   username: z.string().trim().min(2, "Имя пользователя должно содержать минимум 2 символа").max(50, "Имя пользователя должно быть короче 50 символов"),
@@ -34,6 +35,7 @@ const Profile = () => {
   const [isPublic, setIsPublic] = useState(true);
   const [avatarUrl, setAvatarUrl] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [showRingtoneSettings, setShowRingtoneSettings] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -166,12 +168,23 @@ const Profile = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <AvatarUpload
-                currentAvatarUrl={avatarUrl}
-                userId={userId}
-                username={username}
-                onAvatarUpdated={setAvatarUrl}
-              />
+              <div className="flex gap-4">
+                <AvatarUpload
+                  currentAvatarUrl={avatarUrl}
+                  userId={userId}
+                  username={username}
+                  onAvatarUpdated={setAvatarUrl}
+                />
+                <div className="flex-1 flex items-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowRingtoneSettings(true)}
+                    className="w-full"
+                  >
+                    Настройка мелодии звонка
+                  </Button>
+                </div>
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="username">Имя пользователя *</Label>
@@ -273,6 +286,12 @@ const Profile = () => {
           </Card>
         </div>
       </div>
+
+      <RingtoneSettings
+        isOpen={showRingtoneSettings}
+        onClose={() => setShowRingtoneSettings(false)}
+        currentUserId={userId}
+      />
     </div>
   );
 };

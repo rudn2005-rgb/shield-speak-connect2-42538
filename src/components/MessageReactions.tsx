@@ -28,8 +28,12 @@ const MessageReactions = ({ messageId, onReactionChange }: MessageReactionsProps
   const [userId, setUserId] = useState<string>("");
 
   useEffect(() => {
-    loadReactions();
-    getCurrentUser();
+    const init = async () => {
+      await getCurrentUser();
+      loadReactions();
+    };
+    
+    init();
 
     const channel = supabase
       .channel(`reactions:${messageId}`)
@@ -66,9 +70,16 @@ const MessageReactions = ({ messageId, onReactionChange }: MessageReactionsProps
       .select("emoji, user_id")
       .eq("message_id", messageId);
 
-    if (error) return;
+    if (error) {
+      console.error("Error loading reactions:", error);
+      return;
+    }
+
+    if (!data) return;
 
     const groupedReactions: Record<string, Reaction> = {};
+    const { data: { user } } = await supabase.auth.getUser();
+    const currentUserId = user?.id || userId;
 
     data.forEach((reaction) => {
       if (!groupedReactions[reaction.emoji]) {
@@ -81,7 +92,7 @@ const MessageReactions = ({ messageId, onReactionChange }: MessageReactionsProps
       }
       groupedReactions[reaction.emoji].count++;
       groupedReactions[reaction.emoji].users.push(reaction.user_id);
-      if (reaction.user_id === userId) {
+      if (reaction.user_id === currentUserId) {
         groupedReactions[reaction.emoji].reacted = true;
       }
     });
@@ -90,6 +101,13 @@ const MessageReactions = ({ messageId, onReactionChange }: MessageReactionsProps
   };
 
   const handleReaction = async (emoji: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Необходима авторизация");
+      return;
+    }
+
+    const currentUserId = user.id;
     const existingReaction = reactions.find(
       (r) => r.emoji === emoji && r.reacted
     );
@@ -99,10 +117,11 @@ const MessageReactions = ({ messageId, onReactionChange }: MessageReactionsProps
         .from("message_reactions")
         .delete()
         .eq("message_id", messageId)
-        .eq("user_id", userId)
+        .eq("user_id", currentUserId)
         .eq("emoji", emoji);
 
       if (error) {
+        console.error("Error deleting reaction:", error);
         toast.error("Ошибка удаления реакции");
       }
     } else {
@@ -110,11 +129,12 @@ const MessageReactions = ({ messageId, onReactionChange }: MessageReactionsProps
         .from("message_reactions")
         .insert({
           message_id: messageId,
-          user_id: userId,
+          user_id: currentUserId,
           emoji: emoji,
         });
 
       if (error) {
+        console.error("Error adding reaction:", error);
         toast.error("Ошибка добавления реакции");
       }
     }
