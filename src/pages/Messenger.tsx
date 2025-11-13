@@ -297,7 +297,7 @@ const Messenger = () => {
 
   return (
     <SwipeablePanel>
-      <div className="flex h-screen bg-background">
+      <div className="flex h-screen bg-background w-full">
       <div className="w-80 border-r border-border flex flex-col bg-card">
         <div className="p-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2">

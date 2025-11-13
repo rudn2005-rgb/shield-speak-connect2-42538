@@ -13,7 +13,6 @@ const SwipeablePanel = ({ children }: SwipeablePanelProps) => {
   const [currentX, setCurrentX] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const PANEL_WIDTH = 320;
   const TAB_WIDTH = 48;
   const THRESHOLD = 0.37;
 
@@ -82,7 +81,8 @@ const SwipeablePanel = ({ children }: SwipeablePanelProps) => {
   const getDragOffset = () => {
     if (!isDragging) return 0;
     const deltaX = startX - currentX;
-    return Math.max(-PANEL_WIDTH, Math.min(0, -deltaX));
+    const screenWidth = window.innerWidth;
+    return Math.max(-screenWidth, Math.min(0, -deltaX));
   };
 
   const closedIcons = [
@@ -101,7 +101,9 @@ const SwipeablePanel = ({ children }: SwipeablePanelProps) => {
 
   return (
     <>
-      {children}
+      <div className="pr-12">
+        {children}
+      </div>
       
       <div
         ref={panelRef}
@@ -110,9 +112,10 @@ const SwipeablePanel = ({ children }: SwipeablePanelProps) => {
           isDragging && "transition-none"
         )}
         style={{
+          width: isOpen ? '100vw' : `${TAB_WIDTH}px`,
           transform: isOpen
             ? `translateX(${isDragging ? getDragOffset() : 0}px)`
-            : `translateX(${PANEL_WIDTH - TAB_WIDTH + (isDragging ? getDragOffset() : 0)}px)`,
+            : `translateX(0px)`,
         }}
       >
         {/* Tab */}
@@ -139,24 +142,26 @@ const SwipeablePanel = ({ children }: SwipeablePanelProps) => {
         </div>
 
         {/* Panel Content */}
-        <div className="w-80 bg-background border-l shadow-2xl overflow-hidden">
-          <div className="h-full flex flex-col">
-            <div className="p-4 border-b">
-              <h2 className="text-lg font-semibold">Боковая панель</h2>
-            </div>
-            <div className="flex-1 p-4 space-y-4">
-              <div className="p-4 rounded-lg bg-muted">
-                <p className="text-sm">Контент панели</p>
+        {isOpen && (
+          <div className="flex-1 bg-background border-l shadow-2xl overflow-hidden">
+            <div className="h-full flex flex-col">
+              <div className="p-4 border-b">
+                <h2 className="text-lg font-semibold">Боковая панель</h2>
               </div>
-              <div className="p-4 rounded-lg bg-muted">
-                <p className="text-sm">Дополнительная информация</p>
-              </div>
-              <div className="p-4 rounded-lg bg-muted">
-                <p className="text-sm">Настройки</p>
+              <div className="flex-1 p-4 space-y-4">
+                <div className="p-4 rounded-lg bg-muted">
+                  <p className="text-sm">Контент панели</p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted">
+                  <p className="text-sm">Дополнительная информация</p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted">
+                  <p className="text-sm">Настройки</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </>
   );
